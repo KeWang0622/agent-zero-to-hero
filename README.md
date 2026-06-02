@@ -4,7 +4,7 @@
 
 # Build Claude Code in 4,500 lines of Python.
 
-> 19 chapters · the entire agent loop in 6 lines · 3 providers · 42 tests pass without an API key · `$0.50` speedrun · zero frameworks.
+> 20 chapters · the entire agent loop in 6 lines · 3 providers · 42 tests pass without an API key · `$0.50` speedrun · zero frameworks.
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-89b4fa?style=flat-square" alt="MIT"></a>
@@ -87,7 +87,7 @@ You'll get the most out of it if you:
 
 Not for you if you want a plug-and-play framework. Use [LangGraph](https://github.com/langchain-ai/langgraph) or [smolagents](https://github.com/huggingface/smolagents).
 
-## 📑 The 19 chapters
+## 📑 The 20 chapters
 
 Each chapter is one Python file + a matching learning page (`chapters/chNN_topic.py` + `.md`). Read the `.md`, run the `.py`, do the homework.
 
@@ -171,7 +171,7 @@ The chapters are written in plain prose; I show up in the illustrations to keep 
 ## 📂 Repo layout
 
 ```
-chapters/        19 numbered Python files + matching .md walkthroughs
+chapters/        20 numbered Python files + matching .md walkthroughs
 agent.py         the climax — Claude-Code-shaped CLI built from chapter primitives
 microsite/       capstone — build a website from one prompt
 skills/          example SKILL.md files (haiku-master, landing-page)
