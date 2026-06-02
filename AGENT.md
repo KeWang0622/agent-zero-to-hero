@@ -5,8 +5,8 @@ is, where it lives, and what it should do.
 
 ## What this repo is
 
-An educational repo that builds a Claude-Code-shaped agent harness in 18
-chapters of progressive Python files plus one ~600-line `agent.py` that ties
+An educational repo that builds a Claude-Code-shaped agent harness in 20
+chapters of progressive Python files plus one ~840-line `agent.py` that ties
 them together. Read the chapters in order; run each one with
 `python -m chapters.chNN_topic`.
 

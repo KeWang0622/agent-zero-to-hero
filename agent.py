@@ -76,6 +76,15 @@ PRICES = {
     "cache_creation_1h":6.00,    # 1-hour TTL writes (2× input)
     "cache_read":       0.30,    # reads — 0.1× input (90% cheaper)
 }
+if "AZH_MODEL_PRICES" in os.environ:
+    try:
+        price_overrides = json.loads(os.environ["AZH_MODEL_PRICES"])
+        if not isinstance(price_overrides, dict):
+            raise ValueError("expected JSON object")
+    except Exception as e:
+        print(f"warning: invalid AZH_MODEL_PRICES: {e}", file=sys.stderr)
+    else:
+        PRICES.update(price_overrides)
 
 CONTEXT_WINDOW = 200_000
 COMPACT_TRIGGER = 0.60
