@@ -33,7 +33,6 @@ next: ch14 — wire it into the agent loop, write your own server.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path

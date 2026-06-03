@@ -22,7 +22,6 @@ at the end, the agent runs `open index.html` (macOS) or `xdg-open` (linux).
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -30,8 +29,7 @@ from pathlib import Path
 # the system prompt + a different output directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from agent import (
-    Anthropic, Session, Meter, agent_turn, load_agent_md, MODEL,
-    console, Panel,
+    Anthropic, Session, Meter, agent_turn, load_agent_md, console, Panel,
 )
 
 

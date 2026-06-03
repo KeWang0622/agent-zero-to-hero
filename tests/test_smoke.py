@@ -6,7 +6,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-fake-for-tests")
 os.environ["AZH_PERMISSION"] = "allow"      # auto-approve in tests

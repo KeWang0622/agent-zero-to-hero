@@ -9,7 +9,6 @@ Output: assets/launch.gif (1200x720, ~10 seconds, ~30 fps)
 
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-import subprocess
 import shutil
 
 # ---- Catppuccin Mocha palette --------------------------------------------
@@ -43,7 +42,6 @@ def render_frame(lines: list[tuple[str, tuple]], title="agent-zero-to-hero"):
     img = Image.new("RGB", (W, H), BASE)
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
-    bold = ImageFont.truetype(FONT_BOLD, FONT_SIZE)
 
     # macos title bar
     draw.rectangle([0, 0, W, 36], fill=MANTLE)

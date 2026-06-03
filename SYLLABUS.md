@@ -165,7 +165,7 @@ The wire-format chapters. Streaming text + accumulating tool_use partial JSON + 
 
 **Read**: `agent.py` cover-to-cover. Then run `microsite/build_site.py` and watch your harness ship real software.
 
-**Reading**: `agent.py` — every line. ~840 LOC. Cross-reference each section to the chapter that introduced its primitive.
+**Reading**: `agent.py` — every line. ~850 LOC. Cross-reference each section to the chapter that introduced its primitive.
 
 **Final problem set**:
 1. Find one bug in `agent.py` and submit a PR (we keep one bug live by design — the wishlist's "Plan mode" is a missing feature, not a bug; find a real one).

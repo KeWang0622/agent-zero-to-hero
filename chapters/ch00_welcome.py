@@ -2,7 +2,7 @@
 chapter 00 — a working agent in 30 seconds
 
 before any theory: see one work. this file is ~30 lines. it's a complete agent
-with one tool. you'll understand the loop more deeply over the next 18 chapters,
+with one tool. you'll understand the loop more deeply over the next 19 chapters,
 but the whole shape is right here. read it once.
 
   ┌────────────────┐

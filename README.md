@@ -2,7 +2,7 @@
   <img src="assets/hero-course.png" alt="agent-zero-to-hero" width="100%">
 </p>
 
-# Build Claude Code in 4,500 lines of Python.
+# Build Claude Code in ~5,000 lines of Python.
 
 > 20 chapters · the entire agent loop in 6 lines · 3 providers · 42 tests pass without an API key · `$0.50` speedrun · zero frameworks.
 
@@ -113,7 +113,7 @@ Each chapter is one Python file + a matching learning page (`chapters/chNN_topic
 | 15 | [streaming_text](chapters/ch15_streaming_text.md) | SSE basics. Render text deltas as they arrive. |
 | 16 | [streaming_tools](chapters/ch16_streaming_tools.md) | `input_json_delta` accumulation. The hard chapter. |
 | 17 | [multi_provider](chapters/ch17_multi_provider.md) | Same loop, three wires (Anthropic / OpenAI / Gemini). |
-| ★ | **[agent.py](agent.py)** | The climax. ~840-line Claude-Code-shaped CLI built from chapter primitives. |
+| ★ | **[agent.py](agent.py)** | The climax. ~850-line Claude-Code-shaped CLI built from chapter primitives. |
 | ★ | **[microsite/](microsite/)** | The capstone. Build a working website from one prompt. |
 
 Every chapter ends with **Summary**, **Homework**, and **References** (papers + docs + reference repos).

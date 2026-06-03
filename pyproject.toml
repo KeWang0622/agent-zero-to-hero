@@ -1,7 +1,7 @@
 [project]
 name = "agent-zero-to-hero"
 version = "0.1.0"
-description = "Build a Claude-Code-shaped agent harness from scratch. 19 chapters, ~3,800 lines of Python, no frameworks."
+description = "Build a Claude-Code-shaped agent harness from scratch. 20 chapters, ~5,000 lines of Python, no frameworks."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+test = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.urls]
 Homepage = "https://github.com/KeWang0622/agent-zero-to-hero"
@@ -61,3 +61,14 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+
+# Lint for real bugs (pyflakes + syntax/runtime), not cosmetic style. This is a
+# teaching repo: chapters use deliberate aligned dicts and inline returns/
+# semicolons to keep each concept on one screen. We don't fight that style — we
+# only flag things that are actually wrong (unused imports/vars, undefined
+# names, broken f-strings, etc.).
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["F", "E9"]

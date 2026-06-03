@@ -535,7 +535,7 @@ def with_retries(fn, *args, max_attempts=5, base=1.0, cap=30.0, **kwargs):
 
 DEFAULT_SYSTEM = """\
 You are agent-zero-to-hero, a minimal coding agent that runs in the user's terminal.
-You are an educational reference implementation — ~840 lines of Python
+You are an educational reference implementation — ~850 lines of Python
 wrapping the Anthropic Messages API in a tool-use loop. Be precise and terse.
 
 You have these tools: Read, Write, Edit, Bash, Glob, Grep, TodoWrite.
@@ -647,7 +647,8 @@ def agent_turn(client: Anthropic, session: Session, system_text: str,
         if turn > 0 and turn % 5 == 0:
             try:
                 in_toks = with_retries(client.messages.count_tokens,
-                                       model=MODEL, messages=session.messages).input_tokens
+                                       model=MODEL, system=system, messages=session.messages,
+                                       tools=_build_tools_param()).input_tokens
                 if in_toks > CONTEXT_WINDOW * COMPACT_TRIGGER:
                     session.replace_messages(
                         compact_messages(client, session.messages),

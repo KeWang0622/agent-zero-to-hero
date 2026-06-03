@@ -4,7 +4,6 @@ No API calls — we test the message-conversion logic with mocked HTTP."""
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 
 def _load_ch17():
