@@ -75,7 +75,6 @@ def test_loop_dispatches_tool_use():
 
 
 def test_parallel_tool_calls_in_one_turn():
-    seen = []
     client = MockLLM([
         _Response([
             _Block("tool_use", name="a", id="1", input={}),

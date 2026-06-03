@@ -31,9 +31,7 @@ run:
 next: ch15 — streaming text (engineering territory).
 """
 
-import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 

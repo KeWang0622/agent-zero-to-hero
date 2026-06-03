@@ -11,3 +11,7 @@ sessions/
 *.log
 dist/
 build/
+
+# Codex CLI scratch artifacts (created in cwd by `codex exec`)
+.codex
+.codex-*

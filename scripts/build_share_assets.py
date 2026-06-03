@@ -95,7 +95,7 @@ def loop_poster():
     # Footer attribution
     ax.text(50, 8, "agent-zero-to-hero · github.com/KeWang0622/agent-zero-to-hero",
             ha="center", color=OVERLAY, fontsize=12, family="monospace")
-    ax.text(50, 4, "build a Claude-Code-shaped harness from scratch · 19 chapters · 4,500 LOC",
+    ax.text(50, 4, "build a Claude-Code-shaped harness from scratch · 20 chapters · ~5,000 LOC",
             ha="center", color=OVERLAY, fontsize=11, family="monospace", style="italic")
 
     save(fig, "the-loop-poster.png")
@@ -122,7 +122,7 @@ def vs_frameworks():
 
     rows = [
         ("type",                  ["framework", "framework", "framework", "framework", "course / textbook"]),
-        ("size",                  ["~120K LOC",  "~30K LOC",  "~25K LOC",  "~8K LOC",   "**4,500 LOC**"]),
+        ("size",                  ["~120K LOC",  "~30K LOC",  "~25K LOC",  "~8K LOC",   "**~5,000 LOC**"]),
         ("agent loop visible?",   ["no",         "graph",     "agents+",   "yes",       "**6 lines**"]),
         ("you write the loop?",   ["no",         "no",        "no",        "no",        "**yes**"]),
         ("see compaction inside?", ["no",        "no",        "no",        "no",        "**ch10**"]),

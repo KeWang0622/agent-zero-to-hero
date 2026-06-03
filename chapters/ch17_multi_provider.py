@@ -38,7 +38,6 @@ next: agent.py at repo root — the Claude Code clone.
 
 import json
 import os
-import sys
 import time
 from dataclasses import dataclass, field
 from typing import Protocol
