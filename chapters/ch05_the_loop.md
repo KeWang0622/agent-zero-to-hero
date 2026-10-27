@@ -42,7 +42,7 @@ def agent_loop(prompt: str):
     raise RuntimeError(f"hit MAX_TURNS={MAX_TURNS}")
 ```
 
-That's it. That's the entire loop. Everything else (sessions, compaction, MCP, skills, multi-provider) is **layers around these six lines.**
+That is the control-flow skeleton. The snippet deliberately omits status handling and execution policy. A reliable harness must distinguish completion from truncation, bound work, validate tools, and persist progress. Those requirements are part of the system, not consequences of writing six lines.
 
 ---
 
@@ -50,77 +50,44 @@ That's it. That's the entire loop. Everything else (sessions, compaction, MCP, s
 
 This is the question the rest of this chapter answers. It's the deepest question of the course.
 
-### Short answer: it doesn't "know" — it predicts
+### what the API lets us observe
 
-The model has **no orchestrator, no planner, no separate reasoning module**. When you call the API, three things go into one forward pass: `system` prompt + `messages` + `tools`. The model emits its reply by predicting the most likely next text — token by token. That reply happens to contain a `tool_use` block because, given the tool *descriptions* and the question, the most likely text is something like *"I'll list the files first"* + a structured request to do exactly that.
+The request supplies instructions, conversation context, and tool definitions. The response may contain text and structured tool requests. Generation can involve multiple decoding steps and provider-specific reasoning state; a public response does not reveal the model's complete internal process or training recipe.
 
-There is no plan. There's a learned pattern from training: humans break down problems, so the model imitates that pattern when it sees a similar setup.
+We can improve behavior by changing context, tool interfaces, and instructions, then measuring the effect. We cannot conclude from one trace that the model has no plan, or that every failure is a prompt-description problem. Failures can also come from missing evidence, bad tool results, truncated output, stale state, or executor bugs.
 
-### Decomposition lives in three places — none of them in your code
-
-| Source | What it does | Lever |
-|---|---|---|
-| **Training data** | Claude was fine-tuned on agent traces (ReAct-style). Decomposition is built in. | None — already there |
-| **Tool descriptions** | Each `description` shifts which tool gets picked. *"Find files matching a glob pattern"* matches the question better than *"Run a bash command"*. | **Rewrite descriptions** until the right tool is chosen. Highest leverage. |
-| **System prompt** | Rules like *"Gather context first via Glob/Grep before acting"* convert probabilistic decomposition into reliable decomposition. | **Add explicit workflow rules** — see [ch08](ch08_system_prompts.md). |
-
-When your agent does something stupid, the bug is almost always in one of these three. **Most "agent prompt engineering" is rewriting tool descriptions until the model reliably picks the right tool.** You'll spend more time on this than on the loop itself.
-
-### See it for yourself: the "thinking out loud" trick
-
-A single assistant turn often contains BOTH text and tool_use blocks — generated together in one inference. Print `r.content` after a turn:
+### visible commentary is useful, but it is not private reasoning
 
 ```python
-r.content = [
-    TextBlock(text="I'll start by listing the files."),    # ← reasoning
-    ToolUseBlock(name="glob", input={"pattern": "chapters/*.py"})
+# Illustrative response shape, not runnable construction.
+[
+    {"type": "text", "text": "I'll start by listing the files."},
+    {"type": "tool_use", "id": "t1", "name": "glob",
+     "input": {"pattern": "chapters/*.py"}},
 ]
 ```
 
-That text isn't separate "thinking" — it's literal output, generated alongside the tool call. **Read it. Print it. Use it as a debugging hook to see the model's mid-task reasoning.**
+Visible text can explain an intended action to the user. Log the tool request and actual result to debug behavior. Do not treat commentary as a faithful transcript of internal reasoning or proof that the action happened. Some providers return additional reasoning-related items; preserve required state using that provider's contract, as [chapter 17b](ch17b_responses.md) explains.
 
----
+## the action-observation cycle
 
-## 🔄 The ReAct cycle: how multi-step actually works
-
-Each iteration of your `for turn in range(MAX_TURNS)` is one round of the **ReAct cycle** (Reason → Act → Observe). Claude was trained on this pattern explicitly:
-
-```
-turn 0:  REASON   "I'll list the files first."     ← text block
-         ACT      glob(pattern="chapters/*.py")    ← tool_use block
-              ───────────────────────────────────
-your code:  YOU run glob, append the result
-              ───────────────────────────────────
-turn 1:  OBSERVE  reads tool_result in messages    ← happens implicitly
-         REASON   "Now I need their line counts."  ← text block
-         ACT      bash(cmd="wc -l chapters/*.py")  ← tool_use block
-              ───────────────────────────────────
-your code:  YOU run bash, append the result
-              ───────────────────────────────────
-turn 2:  OBSERVE  reads the bash output
-         REASON   "ch17 has 258 lines."
-         ANSWER   stop_reason = "end_turn"          ← exits loop
+```text
+request 1: model requests a file listing
+executor:  lists files and returns the actual result
+request 2: model requests line counts for the discovered files
+executor:  returns counts
+request 3: model produces an answer grounded in those observations
 ```
 
-Three turns. Each turn is one inference. **The "Observe" step doesn't take its own turn** — it happens at the start of the *next* turn, when claude reads the tool_result that's now in messages.
+This resembles the action/observation structure studied by [ReAct](https://arxiv.org/abs/2210.03629). It does not establish which training method any particular proprietary model used. New observations can change the next action. A visible plan is useful context, but it does not enforce a state transition or guarantee task completion.
 
-### Why this is *reactive*, not *planned*
-
-In turn 0, Claude said *"I'll list the files first."* — that looks like a plan. **It isn't.** It's just predicted text, the way *"once upon a time"* is predicted text after a fairy-tale prompt. By turn 1, that "plan" is just old context in the messages array. Claude rereads it and roughly follows it, but it could deviate based on what `glob` returned. If `glob` had returned ONE file, claude would have skipped `wc -l` and answered directly.
-
-**The plan isn't a commitment. It's just a prediction the model can later abandon.**
-
-### So the model is reactive by default. Is that good or bad?
-
-For most tasks: **good enough**. Each turn gets to update its plan based on real observations. That's robust to surprise — if a file is missing, claude doesn't blindly continue.
-
-For long, structured tasks (>5 steps): **fragile**. The model can lose the thread, redo work it already did, or skip steps that "felt obvious" mid-task. To get reliable multi-step behavior, you need to add **explicit planning**.
+For a longer task, keep explicit pending work and acceptance criteria. The important distinction is between a model *proposing* a plan and the application *recording and verifying* progress.
 
 ---
 
 ## 📋 When you DO want explicit planning: TodoWrite
 
-Three escalating techniques, ordered by reliability:
+Three techniques with different enforcement boundaries:
 
 ### 1. System prompt rule (soft)
 ```python

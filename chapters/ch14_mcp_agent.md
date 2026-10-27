@@ -1,20 +1,22 @@
 # Chapter 14 — Wire MCP Into the Agent Loop 🐢
 
-> **An MCP tool is just a remote function. Convert its schema. Route `tool_use` calls back as `tools/call`. Claude can't tell the difference.**
+> **Expose a server's tools to the model, then route its calls through an adapter.**
 
 ## 🐢 GuiGui says
 
-[Chapter 13](ch13_mcp_wire.md) showed the wire. Now we make MCP tools indistinguishable from local tools — same dispatch loop, two field renames, one prefix.
+[Chapter 13](ch13_mcp_wire.md) showed a local process conversation. Now the model sees tool definitions, and the harness decides where each call goes.
+
+**This runnable chapter reuses the `2024-11-05` stdio teaching client and calculator server.** It is not a general MCP client or an implementation of the current `2026-07-28` lifecycle. Read [MCP versions and migration](../docs/MCP_VERSIONS.md) for that distinction.
 
 ## The translation
 
-| Anthropic | MCP |
+| Model-facing field | Source in this MCP example |
 |---|---|
-| `name` | `name` |
-| `description` | `description` |
+| `name` | Server tool name, prefixed with our server namespace |
+| `description` | Server description, prefixed with the server ID |
 | `input_schema` | `inputSchema` |
 
-Two field renames. Plus a `mcp__<server>__<tool>` prefix to disambiguate.
+The schema key changes from `inputSchema` to `input_schema`. The `mcp__<server>__<tool>` name is this adapter's routing convention; it is not a protocol requirement.
 
 ## Show me the code
 
@@ -26,25 +28,32 @@ def to_anthropic_tool(server_id, mcp_tool):
         "input_schema": mcp_tool["inputSchema"],
     }
 
-# in the loop's dispatch:
+# In the loop's dispatch:
 if b.name.startswith("mcp__"):
     _, server_id, tool_name = b.name.split("__", 2)
     out = mcp_clients[server_id].call_tool(tool_name, b.input)
-else:
-    out = local_handlers[b.name](**b.input)
 ```
 
-That's it. Local + MCP behind one dispatch.
+This is enough to expose the bundled calculator. The model chooses a tool; the harness resolves its name, performs the call, and sends the result back with the original model tool-call ID.
+
+## Where the adapter loses information
+
+The runnable [`call_tool`](ch14_mcp_agent.py) joins text content blocks and prefixes failures with `ERROR:`. It drops non-text blocks and does not map MCP `isError` to the model API's structured error flag. That simplification suits the calculator, but broader integrations need explicit handling of content types, structured results, and error semantics. MCP content blocks and model API content blocks are separate schemas. See the [current tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools).
+
+Names and schemas also need validation. A provider may impose naming or JSON Schema limits that the MCP server does not share. A robust adapter maintains a lookup table from model-facing names to server/tool pairs instead of trusting arbitrary strings to fit the split convention.
 
 ## ⚠️ Watch out for
 
-**The blocked stdin.** If the MCP server crashes (or floods stderr you're not reading), its stdout goes silent and your `readline()` blocks forever. Always: timeout on read, SIGTERM on hang.
+- **Process and request failures:** the reused client has no read timeout. This chapter initializes before entering its cleanup block, so an initialization exception can leave a child process running. Treat timeout, failed initialization, EOF, and shutdown as explicit lifecycle cases when extending it.
+- **Trust and access:** a server's description and returned text do not grant it authority to change the user's task or approve another action. The harness owns tool access and authorization. Review server code before running it with your account's permissions.
+- **Version mismatch:** neither the prefix nor successful tool discovery proves full compatibility. Preserve the historical pin for this paired lab. Check [the migration checklist](../docs/MCP_VERSIONS.md#migration-checklist) for another endpoint.
 
 ## ✅ Summary
 
-- MCP tool → Anthropic tool: 2 field renames + namespace prefix.
-- Routing: prefix `mcp__` → MCP client; otherwise local.
-- Same dispatch loop. Claude doesn't know the difference.
+- Translate the tool definition and keep a stable routing identity.
+- Forward calls through the harness and match results to model call IDs.
+- Preserve result and error information required by the application.
+- Keep protocol compatibility and execution permissions visible in the design.
 
 ## 📝 Homework
 
@@ -52,16 +61,20 @@ That's it. Local + MCP behind one dispatch.
 python -m chapters.ch14_mcp_agent "what is (17 * 23) + 1234?"
 ```
 
-1. Watch the JSON-RPC trace + the model's final answer.
-2. Connect TWO MCP servers (calculator + a custom weather server you write).
-3. Add MCP support to `agent.py` (~50 LOC). Send a PR.
+This command requires an Anthropic API key and incurs model usage.
+
+1. Follow the model call ID and the JSON-RPC request ID. Explain why they belong to separate conversations.
+2. Add a second local server using fixed fixture data, keeping the same declared legacy subset.
+3. Test a tool execution failure and a protocol failure separately. Observe which information reaches the model.
+4. Design the mapping for a non-text tool result before implementing it. State which content types you support and how unsupported ones fail.
+5. Compare this adapter with an official SDK release whose supported protocol versions you have checked. Record implementation versions and actual test results; do not infer desktop-client compatibility without testing it.
 
 ## 📚 References
 
-- [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) — what we're NOT using; FastMCP hides the wire
-- [MCP — tool integration patterns](https://modelcontextprotocol.io/docs/concepts/tools) — official guide
-- [LangChain — MCP integrations](https://python.langchain.com/docs/integrations/tools/mcp/) — alternative client implementation worth comparing
-- [`mcp__` namespace convention in Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp) — where the prefix originated
+- [MCP versions and migration](../docs/MCP_VERSIONS.md) — course implementation versus current specification
+- [MCP 2024-11-05 tools](https://modelcontextprotocol.io/specification/2024-11-05/server/tools) — the lab's tool messages
+- [MCP 2026-07-28 tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) — current result and schema requirements
+- [Official Python SDK](https://github.com/modelcontextprotocol/python-sdk) — compare supported versions and lifecycle handling
 
 ## 🚀 Next
 

@@ -11,7 +11,7 @@ Beginners stuff instructions into the first user message. Works for one-shot. Fa
 | Where | What goes here | Cacheable? |
 |---|---|---|
 | `system` | Persona, policies, AGENT.md | ✅ |
-| `messages` | The conversation | ❌ |
+| `messages` | The conversation | Stable prefixes may be cached |
 | `tools` | Capabilities + JSON Schema | ✅ |
 
 ## Show me the code
@@ -25,21 +25,21 @@ r = client.messages.create(
     messages=msgs, tools=TOOLS, max_tokens=1024,
 )
 
-# with caching (one extra wrapper, ~10× cheaper on input)
+# explicit caching marker (requires enough eligible, reusable input)
 system_cached = [{"type": "text", "text": SYSTEM,
                   "cache_control": {"type": "ephemeral"}}]
 ```
 
-That's the entire system-prompt API. `cache_control` is one wrapper away.
+This illustrates the top-level system field used by the course. The short example prompt is below the caching threshold; a marker alone does not produce a hit. See [chapter 08c](ch08c_prompt_caching.md).
 
 ## ⚠️ Watch out for
 
-**The persona drift.** Persona in the first user message gets compacted away by [ch10](ch10_compaction.md). Persona in `system` survives forever — compaction never touches it.
+**The persona drift.** Persona in the first user message gets compacted away by [ch10](ch10_compaction.md). The client-side compactor in this course leaves the separately supplied `system` unchanged. That is an application policy, not a universal lifetime guarantee.
 
 ## ✅ Summary
 
 - `system` is persistent identity. Use it.
-- Wrap with `cache_control` for ~10× input cost reduction.
+- Check eligibility and measured cache usage; savings depend on the workload.
 - `system` survives compaction; user messages don't.
 
 ## 📝 Homework
@@ -49,7 +49,7 @@ python -m chapters.ch08_system_prompts
 ```
 
 1. Same question, three system prompts. Compare voices.
-2. Wrap `system` with `cache_control`. Run twice. Check `cache_read_input_tokens`.
+2. Wrap `system` with `cache_control`. Predict whether this short prompt clears the model threshold, then inspect usage in an opt-in live run.
 3. Find one place in `agent.py` where changing the system prompt would alter behavior.
 
 ## 📚 References

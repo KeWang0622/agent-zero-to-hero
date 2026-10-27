@@ -2,210 +2,152 @@
   <img src="assets/hero-course.png" alt="agent-zero-to-hero" width="100%">
 </p>
 
-# Build Claude Code in ~5,000 lines of Python.
+# Agent Zero to Hero
 
-> 20 chapters · the entire agent loop in 6 lines · 3 providers · 42 tests pass without an API key · `$0.50` speedrun · zero frameworks.
+**Build an agent harness from scratch. Learn how to tell whether it works.**
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-89b4fa?style=flat-square" alt="MIT"></a>
-  <a href="https://github.com/KeWang0622/agent-zero-to-hero/actions"><img src="https://img.shields.io/github/actions/workflow/status/KeWang0622/agent-zero-to-hero/ci.yml?style=flat-square&label=tests" alt="tests"></a>
-  <img src="https://img.shields.io/badge/python-3.10+-89b4fa?style=flat-square&logo=python&logoColor=white" alt="python">
-  <img src="https://img.shields.io/badge/api_keys_required-0-a6e3a1?style=flat-square" alt="0 API keys">
-  <img src="https://img.shields.io/badge/frameworks-none-f38ba8?style=flat-square" alt="no frameworks">
-  <a href="https://github.com/KeWang0622/agent-zero-to-hero/stargazers"><img src="https://img.shields.io/github/stars/KeWang0622/agent-zero-to-hero?style=flat-square" alt="stars"></a>
-</p>
+A source-first Python course: 20 foundation lessons, a new Responses API lab, and three reliability design lessons. No agent framework dependencies. Each step makes a small mechanism visible before adding another.
 
-<p align="center">
-  <a href="https://github.com/KeWang0622/agent-zero-to-hero/raw/main/assets/explainer.mp4">
-    <img src="assets/launch.gif" alt="agent.py demo" width="80%">
-  </a>
-</p>
+**October 2026 edition · sources checked 2026-10-26.** Start with the [field guide](docs/FIELD_GUIDE_2026.md) for what's changed, [update notes](docs/UPDATE_2026.md) for this revision, or the [中文更新说明](docs/UPDATE_2026.zh-CN.md).
 
-> 📺 **75-second narrated walkthrough**: [`assets/explainer.mp4`](assets/explainer.mp4) (click the GIF or open directly).
+The original course's strength is its progression from one model call to a usable coding harness. This edition keeps that progression and makes the boundaries explicit: a successful demo is not a quality evaluation, a transcript is not durable execution, and a prompt is not an access-control mechanism.
 
-## ⚡ Run it in 30 seconds (no API key)
+## start offline
+
+Requires **Python 3.10+**. From the repository root:
 
 ```bash
-git clone https://github.com/KeWang0622/agent-zero-to-hero.git
-cd agent-zero-to-hero && pip install -e .
-pytest tests/                                          # 42 passed in 0.6s
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate                 # Windows: .venv\Scripts\activate
+python -m pip install -e ".[test]"
+python -m pytest tests/ -q
+python -m ruff check .
 ```
 
-To run the actual agent:
+The tests use mocks and a local MCP subprocess. They need no API key. The [validation record](docs/VALIDATION.md) records the environment tested for this update; it does not certify live model quality or account access.
+
+For an opt-in live foundation demo:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-python -m chapters.ch00_welcome "what is 17 * 23?"     # your first agent
-python agent.py "build me Tetris in one HTML file"     # the climax
-python microsite/build_site.py "Brooklyn ramen shop"   # the capstone
+export ANTHROPIC_API_KEY='your-key'
+python -m chapters.ch00_welcome "what is 17 * 23?"
 ```
 
-## 🎯 The entire agent loop is 6 lines
+For the new Responses lab, set an available compatible model explicitly:
+
+```bash
+export OPENAI_API_KEY='your-key'
+export OPENAI_MODEL='your-supported-model-id'
+python -m chapters.ch17b_responses
+```
+
+Live calls incur provider charges. Before using the capstone, read [its permission boundary](chapters/ch19_permissions.md): `agent.py` can read files and execute a shell with the access of its process. Use an inspected, disposable workspace for experiments.
+
+## the loop is the beginning
 
 ```python
-while True:
-    r = client.messages.create(model=M, messages=msgs, tools=TOOLS)
-    msgs.append({"role": "assistant", "content": r.content})
-    if r.stop_reason != "tool_use":
-        return r
-    msgs.append({"role": "user", "content": run_all_tools(r.content)})
+# Conceptual pseudocode: see the chapters for provider-specific details.
+for step in range(step_budget):
+    response = call_model(context, tools)
+    validate_completion_and_tool_calls(response)
+    context.append(response)
+    if response.is_final:
+        return verify_outcome(response)
+    context.extend(execute_authorized_tools(response.tool_calls))
 ```
 
-That's Claude Code. That's Cursor. That's Devin. Every coding agent on Earth wraps these six lines. By the end of [chapter 5](chapters/ch05_the_loop.md) you'll write this from memory.
+The shared idea is model → tools → observations → model. A useful harness also owns state, permissions, limits, recovery, and evidence of completion. Commercial coding agents contain much more than this sketch.
 
 ```mermaid
 flowchart LR
-    User([👤 user prompt]) --> Msgs[/messages array<br/><i>ch02 · the only memory</i>/]
-    Msgs --> Model[the model<br/><i>claude · openai · gemini<br/>ch01 · ch17</i>]
-    Tools[🔧 tools<br/><i>ch04-06</i>] -.-> Model
-    Skills[📜 skills<br/><i>ch12</i>] -.-> Model
-    MCP[🔌 MCP servers<br/><i>ch13-14</i>] -.-> Model
-    Model --> Stop{stop_reason?<br/><i>ch03</i>}
-    Stop -- end_turn --> Answer([💬 final answer<br/><i>saved to session.jsonl · ch09</i>])
-    Stop -- tool_use --> Run[run all tools<br/>append tool_results]
-    Run --> Msgs
-    style Msgs fill:#1e1e2e,stroke:#89b4fa,color:#89b4fa
-    style Model fill:#1e1e2e,stroke:#cba6f7,color:#cba6f7
-    style Stop fill:#1e1e2e,stroke:#f9e2af,color:#f9e2af
-    style Answer fill:#1e1e2e,stroke:#94e2d5,color:#94e2d5
-    style Run fill:#1e1e2e,stroke:#f9e2af,color:#f9e2af
-    style Tools fill:#1e1e2e,stroke:#a6e3a1,color:#a6e3a1
-    style Skills fill:#1e1e2e,stroke:#fab387,color:#fab387
-    style MCP fill:#1e1e2e,stroke:#f5c2e7,color:#f5c2e7
-    style User fill:#313244,stroke:#cdd6f4,color:#cdd6f4
+    U[Task and acceptance criteria] --> C[Build context]
+    C --> M[Call model]
+    M --> V{Validate response}
+    V -->|tool calls| P[Check permissions and budgets]
+    P --> T[Execute tools]
+    T --> S[Record results and state]
+    S --> C
+    V -->|final answer| E[Check outcome]
+    V -->|incomplete or invalid| F[Report failure or recover]
 ```
 
-The model is stateless. The messages array is the only memory. Tools, skills, sessions, MCP — they're how the **harness** extends the model. They're not the agent. **The loop is.**
+## choose a reading path
 
-## 👀 Who this is for
+| Reader | Start here | Result |
+|---|---|---|
+| New to agents; comfortable with Python | 00 → 05, then 06 → 10 | Explain and debug the tool loop |
+| Returning reader | [Field guide](docs/FIELD_GUIDE_2026.md) → 17b → 18–20 | Understand current interfaces and reliability gaps |
+| Building a product | 18 → 19 → 20, then inspect `agent.py` | Write acceptance tests, authority rules, and a recovery design |
+| Teaching a class | [SYLLABUS.md](SYLLABUS.md) | Seven-week core plus optional reliability extension |
 
-You'll get the most out of it if you:
+## foundation: inspect, run, break, explain
 
-- Can write **basic Python** (loops, dicts, functions). No advanced async, types, or web frameworks needed.
-- Have used a coding agent (Claude Code, Cursor, Devin) and wonder *what's actually happening inside*.
-- Want to read the source of a real agent harness and **recognize every primitive by name**.
-
-Not for you if you want a plug-and-play framework. Use [LangGraph](https://github.com/langchain-ai/langgraph) or [smolagents](https://github.com/huggingface/smolagents).
-
-## 📑 The 20 chapters
-
-Each chapter is one Python file + a matching learning page (`chapters/chNN_topic.py` + `.md`). Read the `.md`, run the `.py`, do the homework.
+Foundation lessons have paired Python and Markdown files. Historical API/protocol examples are labelled where relevant; model availability and pricing must be checked before a live run.
 
 | # | Chapter | What you'll learn |
 |---|---|---|
 | 00 | [welcome](chapters/ch00_welcome.md) | A complete working agent in 30 lines. The whole shape, in 5 minutes. |
 | 01 | [raw_call](chapters/ch01_raw_call.md) | One HTTP POST. The Messages API. No SDK. |
-| 02 | [messages_array](chapters/ch02_messages_array.md) | The API is stateless. The `messages` array IS the memory. |
-| 03 | [stop_reasons](chapters/ch03_stop_reasons.md) | The seven ways out of the loop. Handle each correctly. |
+| 02 | [messages_array](chapters/ch02_messages_array.md) | Application-managed history for the stateless Messages API. |
+| 03 | [stop_reasons](chapters/ch03_stop_reasons.md) | Foundation termination states and explicit handling of unknown states. |
 | 04 | [one_tool](chapters/ch04_one_tool.md) | The `tool_use` → `tool_result` protocol. One round-trip. |
 | **05** | **[the_loop](chapters/ch05_the_loop.md)** | **THE LOOP.** Six lines. Decomposition, ReAct, planning. The pivot chapter. |
 | 06 | [parallel_tools](chapters/ch06_parallel_tools.md) | Multiple tool_use blocks in one turn. The single-user-message rule. |
 | 07 | [errors](chapters/ch07_errors.md) | Tool errors as content. `is_error: true`. Refusals. |
 | 08 | [system_prompts](chapters/ch08_system_prompts.md) | What goes in `system` vs `messages`. Persona that survives compaction. |
-| 08b | [observability](chapters/ch08b_observability.md) | The dollar ticker. `response.usage` × prices = no bill shock. |
-| **08c** | **[prompt_caching](chapters/ch08c_prompt_caching.md)** | **The 5× cost lever.** Per-model thresholds, breakpoints, TTL, foot-guns. |
+| 08b | [observability](chapters/ch08b_observability.md) | Estimate per-turn usage and cost; record pricing assumptions. |
+| **08c** | **[prompt_caching](chapters/ch08c_prompt_caching.md)** | Stable prefixes, model-specific thresholds, TTL, measured savings. |
 | 09 | [sessions](chapters/ch09_sessions.md) | JSONL on disk. Resume after `Ctrl-C`. |
-| **10** | **[compaction](chapters/ch10_compaction.md)** | **The chapter that pays for itself.** Surgery, not GC. |
-| 11 | [subagents](chapters/ch11_subagents.md) | Context isolation as a feature. 10× cheaper. |
+| **10** | **[compaction](chapters/ch10_compaction.md)** | Summarize context while preserving important state and tool pairs. |
+| 11 | [subagents](chapters/ch11_subagents.md) | Isolate exploration; measure total cost and handoff quality. |
 | 12 | [skills](chapters/ch12_skills.md) | Markdown loaded on demand. Progressive disclosure. |
-| **13** | **[mcp_wire](chapters/ch13_mcp_wire.md)** | **MCP demystified** — JSON-RPC over stdio with three method calls. |
+| **13** | **[mcp_wire](chapters/ch13_mcp_wire.md)** | A pinned 2024-11-05 stdio tools subset; current protocol differs. |
 | 14 | [mcp_agent](chapters/ch14_mcp_agent.md) | Wire your own MCP server into the agent loop. |
 | 15 | [streaming_text](chapters/ch15_streaming_text.md) | SSE basics. Render text deltas as they arrive. |
 | 16 | [streaming_tools](chapters/ch16_streaming_tools.md) | `input_json_delta` accumulation. The hard chapter. |
-| 17 | [multi_provider](chapters/ch17_multi_provider.md) | Same loop, three wires (Anthropic / OpenAI / Gemini). |
-| ★ | **[agent.py](agent.py)** | The climax. ~850-line Claude-Code-shaped CLI built from chapter primitives. |
+| 17 | [multi_provider](chapters/ch17_multi_provider.md) | Original Anthropic / Chat Completions / generateContent adapters. |
+| ★ | **[agent.py](agent.py)** | Educational coding CLI combining core primitives; see capability map below. |
 | ★ | **[microsite/](microsite/)** | The capstone. Build a working website from one prompt. |
 
-Every chapter ends with **Summary**, **Homework**, and **References** (papers + docs + reference repos).
 
-## 🗺️ The 7-week journey
+## new: from a working demo to an assessed system
 
-<p align="center">
-  <img src="assets/journey.png" alt="The 7-week journey" width="100%">
-</p>
-
-| Week | Theme | Chapters |
+| Chapter | Format | What you should be able to demonstrate |
 |---|---|---|
-| <img src="assets/week1.png" width="120"><br>**Week 1** | **Foundations.** From one HTTP call to the agent loop. | [00](chapters/ch00_welcome.md) · [01](chapters/ch01_raw_call.md) · [02](chapters/ch02_messages_array.md) · [03](chapters/ch03_stop_reasons.md) · [04](chapters/ch04_one_tool.md) · **[05](chapters/ch05_the_loop.md)** |
-| <img src="assets/week2.png" width="120"><br>**Week 2** | **Tool engineering.** Parallel calls, errors, system prompts. | [06](chapters/ch06_parallel_tools.md) · [07](chapters/ch07_errors.md) · [08](chapters/ch08_system_prompts.md) |
-| <img src="assets/week3.png" width="120"><br>**Week 3** | **Cost & observability.** The dollar ticker. The 5× cache lever. Compaction. | [08b](chapters/ch08b_observability.md) · **[08c](chapters/ch08c_prompt_caching.md)** · **[10](chapters/ch10_compaction.md)** |
-| <img src="assets/week4.png" width="120"><br>**Week 4** | **Persistence & scale.** Sessions on disk. Subagents. | [09](chapters/ch09_sessions.md) · **[11](chapters/ch11_subagents.md)** |
-| <img src="assets/week5.png" width="120"><br>**Week 5** | **Skills & MCP.** Markdown loaded on demand. Three JSON-RPC calls. | [12](chapters/ch12_skills.md) · **[13](chapters/ch13_mcp_wire.md)** · [14](chapters/ch14_mcp_agent.md) |
-| <img src="assets/week6.png" width="120"><br>**Week 6** | **Engineering polish.** Streaming. Three providers, one loop. | [15](chapters/ch15_streaming_text.md) · [16](chapters/ch16_streaming_tools.md) · [17](chapters/ch17_multi_provider.md) |
-| <img src="assets/week7.png" width="120"><br>**Week 7** | **Capstone.** Read [`agent.py`](agent.py). Run [`microsite/`](microsite/). Build something. | [agent.py](agent.py) · [microsite](microsite/) |
+| [17b — Responses](chapters/ch17b_responses.md) | Python + offline protocol tests | Preserve continuation and call IDs; reject incomplete responses |
+| [18 — Evaluation](chapters/ch18_evaluation.md) | Design lesson + exercises | Judge environment outcomes and repeatability, not fluent answers |
+| [19 — Permissions](chapters/ch19_permissions.md) | Design lesson + exercises | Separate tool descriptions, user authority, and execution policy |
+| [20 — Durable execution](chapters/ch20_durable_execution.md) | Design lesson + exercises | Recover from a crash without blindly repeating an external write |
 
-> **Bold chapters** are load-bearing concepts — read them twice.
-> Full schedule with problem sets, labs, and the final exam: **[SYLLABUS.md](SYLLABUS.md)**.
+The three design lessons describe extensions to build. They do not imply those production subsystems are already implemented in the CLI.
 
-## 📅 How to take it
+## what is actually integrated?
 
-| | Pace | Time / week | Total |
-|---|---|---|---|
-| 🎓 **Full course** | One week per module + capstone | ~3-4 hrs | ~25 hrs |
-| ⚡ **Speedrun** | Skip homework, run [speedrun.sh](runs/speedrun.sh) | — | ~5 hrs |
-| 🛠️ **Reference** | Read [`agent.py`](agent.py) cover-to-cover, dip into chapters as needed | — | ~2 hrs |
+| Capability | Standalone lesson | `agent.py` |
+|---|---|---|
+| Model/tool loop, local file tools, streaming | 00–08, 15–16 | Yes, Anthropic only |
+| Conversation log and compaction | 09–10 | Yes; new snapshots replay after restart |
+| Confirmation before Write/Edit/Bash | 19 explains the limits | Basic gate; no OS sandbox |
+| Usage meter | 08b–08c | In-process estimate; not durable billing |
+| Subagents | 11 | Exercise, not integrated |
+| Skills discovery/loading | 12 | Exercise, not integrated |
+| MCP connection | 13–14 | Separate legacy-protocol demo |
+| Multiple providers / Responses | 17 / 17b | Separate examples |
+| Outcome evaluation / transactional recovery | 18 / 20 | Design exercises, not production features |
 
-**API spend:** about **$0.50** for the speedrun, **$5–$10** for the full course (the capstone is the most expensive turn). You can verify the install **without an API key** — `pytest tests/` runs against mocked LLMs and a real MCP subprocess.
+## documentation map
 
-## 🐢 Quotable mottos
+- [2026 field guide](docs/FIELD_GUIDE_2026.md): architecture, state, interoperability, and tool economics.
+- [Provider adaptation](docs/ADAPTING.md): original adapter limitations and current API paths.
+- [MCP version boundary](docs/MCP_VERSIONS.md): the pinned lab versus today's stable specification.
+- [Sources](docs/SOURCES.md): primary references, dates, status, and implications.
+- [FAQ](docs/FAQ.md), [validation](docs/VALIDATION.md), [remaining work](docs/WISHLIST.md), and [exam key](docs/EXAM_KEY.md).
 
-| Chapter | Motto |
-|---|---|
-| [02 messages](chapters/ch02_messages_array.md) | *"The messages array IS the memory. There is no other memory."* |
-| [05 the_loop](chapters/ch05_the_loop.md) | *"An agent loop is just `while True` of one talking to the other."* |
-| [08c caching](chapters/ch08c_prompt_caching.md) | *"It's not a feature. It's a placement problem."* |
-| [10 compaction](chapters/ch10_compaction.md) | *"Surgery, not GC. Replace the older half with one synthetic message."* |
-| [11 subagents](chapters/ch11_subagents.md) | *"Context isolation as a feature. 10× cheaper."* |
-| [13 mcp_wire](chapters/ch13_mcp_wire.md) | *"Three method calls. JSON-RPC over stdio. That's all."* |
+Costs and performance are measured properties of a configuration, not promises printed on the cover. Record model ID, SDK, task, retries, cache use, and output size when comparing runs. Original illustrations and promotional media are retained as historical course assets; their embedded counts or price slogans may predate this edition.
 
----
+## about the course
 
-<p align="center">
-  <img src="assets/mascot-wave.gif" alt="GuiGui waving" width="240">
-</p>
+Written by **[Ke Wang](https://github.com/KeWang0622)**. GuiGui 🐢 remains the course mascot. The course is inspired by readable educational repositories such as Karpathy's [micrograd](https://github.com/karpathy/micrograd), and by public documentation and implementations across the agent ecosystem.
 
-### Hi! I'm GuiGui 🐢 — the mascot for this course
-
-The chapters are written in plain prose; I show up in the illustrations to keep the energy up. If you spot me with a graduation cap, you've reached week 7.
-
-## 📂 Repo layout
-
-```
-chapters/        20 numbered Python files + matching .md walkthroughs
-agent.py         the climax — Claude-Code-shaped CLI built from chapter primitives
-microsite/       capstone — build a website from one prompt
-skills/          example SKILL.md files (haiku-master, landing-page)
-mcp_servers/     example MCP servers (calculator)
-tests/           verify your install, no API key required
-docs/            ADAPTING.md (port to OpenAI/Gemini), FAQ.md
-SYLLABUS.md      7-week schedule with problem sets and exam
-AGENT.md         project context auto-loaded by agent.py
-```
-
-## 🎓 For instructors
-
-This course is MIT-licensed and built to be adopted. All chapters are runnable in 30 seconds. 25 students × 7 weeks ≈ $50 in total API spend. See [SYLLABUS.md](SYLLABUS.md) for problem sets, labs, and final exam. [Open an issue](https://github.com/KeWang0622/agent-zero-to-hero/issues) if you adopt this for a class — we'll add your school here.
-
-## 📤 Share-ready images
-
-If you want to tweet about this course, [`assets/share/`](assets/share/) has 8 PNGs designed for screenshot-friendly sharing — the 6-line loop poster, a side-by-side comparison vs LangChain / LangGraph / CrewAI / smolagents, and 6 motto cards in tweet-card aspect ratio. MIT-licensed; attribution appreciated, not required.
-
-<p align="center">
-  <a href="assets/share/the-loop-poster.png"><img src="assets/share/the-loop-poster.png" alt="the agent loop poster" width="80%"></a>
-</p>
-
-## 📈 Star history
-
-[![Star History Chart](https://api.star-history.com/svg?repos=KeWang0622/agent-zero-to-hero&type=Date)](https://star-history.com/#KeWang0622/agent-zero-to-hero&Date)
-
-## 🙏 Acknowledgements
-
-- [@karpathy](https://github.com/karpathy) for the literary genre of educational repos (`nanoGPT`, `nanochat`, `micrograd`).
-- [Anthropic](https://anthropic.com) for shipping the cleanest tool-use protocol of any major LLM provider.
-- [Simon Willison](https://simonwillison.net) — *"Claude Skills are maybe a bigger deal than MCP"* inspired chapter 12.
-
-Written by **[Ke Wang](https://github.com/KeWang0622)** — agent identity & memory at [Pika](https://pika.art). Previously: Samsung, Adobe (Marc Levoy's team). PhD in computational imaging.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+MIT licensed. See [LICENSE](LICENSE). Contributions should preserve small, inspectable lessons; read [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -6,7 +6,7 @@
 
 Simon Willison called this *"maybe a bigger deal than MCP."* The system prompt should be SHORT. It should contain claude's persona AND a CATALOG of available skills. The actual procedural knowledge — examples, style guides, pitfalls — lives in separate files claude can read on demand. **Progressive disclosure.**
 
-This is what separates a 5,000-token system prompt from a 500-token one — and gets you 10× cheaper agents that *also* perform better.
+A small catalog avoids loading irrelevant procedures. Measure the effect on total cost and task success; a smaller initial prompt does not guarantee a fixed saving.
 
 ## The shape on disk
 
@@ -57,7 +57,7 @@ SYSTEM PROMPT (always loaded, ~300 tokens):
   Call read_skill(name) to load a skill's body when needed.
 ```
 
-When claude decides it needs a skill, it calls `read_skill("haiku-master")` and the body comes back as a `tool_result`. The body is now in messages — claude has the procedural knowledge it needs **for that one task only**.
+When claude decides it needs a skill, it calls `read_skill("haiku-master")` and the body comes back as a `tool_result`. The body is now in messages — claude has the procedural knowledge it needs **until the harness removes, compacts, or resets that history**.
 
 ## What flows on the wire
 
@@ -92,14 +92,11 @@ API replies:
 
 > **Note on Anthropic's official Skills feature.** Anthropic shipped a [first-party Skills system in October 2025](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills) that uses the **Bash tool** to read `SKILL.md` from disk — there's no dedicated `read_skill` tool. The mechanism is identical (catalog in system prompt, body loaded on demand as a `tool_result`); we use a custom `read_skill` tool here to keep the example self-contained without requiring the Bash sandbox. Conceptually it's the same chapter.
 
-## The cost math
+## the cost model
 
-| Approach | System prompt tokens | Per-turn input cost (5 skills × 3000 tokens) |
-|---|---|---|
-| **All skills eager-loaded** | 15,000+ | $0.045 every turn (Sonnet 4.6) |
-| **Catalog + on-demand** | ~500 | $0.0015 every turn + $0.009 ONCE when a skill loads |
+Loading a body once does not mean paying for it once. While it remains in the conversation, subsequent requests include it again; prompt caching may discount eligible repeated tokens. Compare eager and deferred loading using measured uncached input, cache writes, cache reads, and outputs.
 
-50-turn session, no skills used: **~$2.25 vs ~$0.075**. **30× cheaper** — and you got the same persona budget, you just didn't pay for procedural knowledge you didn't need.
+The portable [Agent Skills specification](https://agentskills.io/specification) defines required `name` and `description` metadata and optional supporting directories. Our tiny frontmatter parser is a teaching subset, not a complete YAML parser or specification validator. A skill packages procedures; it does not grant permissions to execute them. Review untrusted scripts and keep executor authorization independent of skill prose.
 
 ## Show me the code
 

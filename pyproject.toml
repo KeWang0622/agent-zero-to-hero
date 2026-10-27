@@ -1,7 +1,7 @@
 [project]
 name = "agent-zero-to-hero"
 version = "0.1.0"
-description = "Build a Claude-Code-shaped agent harness from scratch. 20 chapters, ~5,000 lines of Python, no frameworks."
+description = "Build a Claude-Code-shaped agent harness from scratch. 21 executable lessons plus reliability design labs, no agent frameworks."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

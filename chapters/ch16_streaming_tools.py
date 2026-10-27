@@ -11,17 +11,19 @@ on their own.
 
 the rule:
   TEXT deltas      → render immediately
-  TOOL_USE deltas  → ACCUMULATE into a buffer, parse on `content_block_stop`
+  TOOL_USE deltas  → ACCUMULATE, check the final stop_reason, then parse
 
-this is the most-asked, most-bug-reported topic in the anthropic SDK issue
-tracker. once you see the protocol, it stops being mysterious.
+a content_block_stop closes a block; it does not prove the response finished
+successfully. truncated tool arguments must never become executable input.
 
 events for a streamed tool_use block:
   content_block_start  { "content_block": { "type": "tool_use", "name": ..., "id": ... } }
   content_block_delta  { "delta": { "type": "input_json_delta", "partial_json": "{\"expr" } }
   content_block_delta  { "delta": { "type": "input_json_delta", "partial_json": "ession\":\"1+" } }
   content_block_delta  { "delta": { "type": "input_json_delta", "partial_json": "1\"}" } }
-  content_block_stop                                      ← NOW you can json.parse
+  content_block_stop                                      ← keep the buffer
+  message_delta { "delta": { "stop_reason": "tool_use" } } ← check before parsing
+  message_stop                                           ← validate the whole batch
 
 run:
   python -m chapters.ch16_streaming_tools "what is 999 * 999?"
@@ -71,6 +73,25 @@ def run_tool(name: str, inp: dict) -> str:
     return f"unknown tool: {name}"
 
 
+def finish_blocks(blocks, stop_reason):
+    """Validate every call before any call can enter history or execute."""
+    if stop_reason in {"max_tokens", "model_context_window_exceeded"}:
+        raise RuntimeError(f"response truncated ({stop_reason}); no tools executed")
+    if stop_reason not in {"end_turn", "stop_sequence", "tool_use"}:
+        raise RuntimeError(f"unexpected stop_reason: {stop_reason!r}")
+    calls = [b for b in blocks if b["type"] == "tool_use"]
+    if bool(calls) != (stop_reason == "tool_use"):
+        raise RuntimeError("tool_use blocks and stop_reason disagree")
+    for block in calls:
+        try:
+            block["input"] = json.loads(block.pop("_partial_json") or "{}")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"invalid JSON for tool {block['name']}; no tools executed") from e
+        if not isinstance(block["input"], dict):
+            raise RuntimeError(f"tool {block['name']} input must be a JSON object")
+    return blocks
+
+
 def stream_one_turn(messages: list[dict]) -> tuple[list[dict], str]:
     """
     Stream a single turn. Returns (assistant_content_blocks, stop_reason).
@@ -113,11 +134,7 @@ def stream_one_turn(messages: list[dict]) -> tuple[list[dict], str]:
                     blk["_partial_json"] += d.partial_json
 
             elif t == "content_block_stop":
-                blk = blocks_in_progress[event.index]
-                if blk["type"] == "tool_use":
-                    # block is finished — NOW we parse the full string.
-                    blk["input"] = json.loads(blk.pop("_partial_json") or "{}")
-                    print(f"\n  [tool_use] {blk['name']}({blk['input']})")
+                pass  # message_delta with the final stop_reason has not arrived yet.
 
             elif t == "message_delta":
                 stop_reason = event.delta.stop_reason
@@ -127,6 +144,10 @@ def stream_one_turn(messages: list[dict]) -> tuple[list[dict], str]:
 
     # reassemble blocks in order — the API expects them in original index order.
     blocks = [blocks_in_progress[i] for i in sorted(blocks_in_progress)]
+    finish_blocks(blocks, stop_reason)
+    for block in blocks:
+        if block["type"] == "tool_use":
+            print(f"\n  [tool_use] {block['name']}({block['input']})")
     return blocks, stop_reason
 
 
@@ -138,7 +159,7 @@ def agent_loop(prompt: str):
         blocks, stop = stream_one_turn(messages)
         messages.append({"role": "assistant", "content": blocks})
 
-        if stop == "end_turn":
+        if stop in {"end_turn", "stop_sequence"}:
             print()
             return
 

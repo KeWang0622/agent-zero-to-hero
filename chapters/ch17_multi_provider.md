@@ -15,7 +15,7 @@ We've used Anthropic everywhere because its tool-use shape is the cleanest. But 
 | System prompt | top-level field | first message, `role: "system"` (`"developer"` on o-series / GPT-5+); Responses API uses top-level `instructions` | `system_instruction` |
 | Assistant role string | `"assistant"` | `"assistant"` | **`"model"` (rejects `"assistant"`)** |
 
-**Bonus foot-gun:** OpenAI now has TWO APIs — Chat Completions (the older format above) and Responses API (the recommended one for new projects, with native tools and server-side state). The two have different shapes; this chapter uses Chat Completions because it's still the most common.
+**Compatibility note (2026-10-26):** this chapter preserves the original Chat Completions and Gemini `generateContent` adapters for comparison. They are intentionally lossy teaching adapters, not complete support for all current models. For a new OpenAI implementation, continue to [chapter 17b — Responses](ch17b_responses.md). See [ADAPTING.md](../docs/ADAPTING.md) for current API choices and limitations.
 
 ## Show me the code
 
@@ -47,7 +47,7 @@ Three providers × ~30 lines each = ~100 LOC of adapter. The loop never changes.
 
 ## ⚠️ Watch out for
 
-**OpenAI's JSON string args.** `tool_call.function.arguments` is a STRING. `json.loads` it before use. **Gemini's missing stop reason.** Scan `parts` for `functionCall` — `finishReason` is always `STOP`.
+**OpenAI's JSON string args.** `tool_call.function.arguments` is a STRING. `json.loads` it before use. **Gemini tool detection.** In this `generateContent` example, inspect `parts` for `functionCall`; also handle non-success finish reasons and missing candidates. `finishReason` is not always `STOP`. Preserve the original content and required reasoning metadata when extending the adapter.
 
 ## ✅ Summary
 
@@ -69,10 +69,10 @@ python -m chapters.ch17_multi_provider
 
 - [docs/ADAPTING.md](../docs/ADAPTING.md) — porting guide with provider-specific gotchas (in this repo)
 - [Anthropic vs OpenAI vs Gemini — tool use comparison](https://www.glukhov.org/post/2025/10/structured-output-comparison-popular-llm-providers/) — side-by-side
-- [OpenAI — Migrate to the Responses API](https://platform.openai.com/docs/guides/migrate-to-responses) — the new API replacing Chat Completions
+- [OpenAI — Migrate to the Responses API](https://platform.openai.com/docs/guides/migrate-to-responses) — recommended for new projects; Chat Completions remains supported
 - [Gemini — Function calling docs](https://ai.google.dev/gemini-api/docs/function-calling) — official spec
 - [LiteLLM](https://github.com/BerriAI/litellm) — production-grade multi-provider adapter (compare to ours)
 
 ## 🚀 Next
 
-You're done with chapters! Time for [`agent.py`](../agent.py) — read it cover-to-cover. Then [`microsite/`](../microsite/) — use what you built.
+Continue to [chapter 17b](ch17b_responses.md), then the reliability lessons [18](ch18_evaluation.md), [19](ch19_permissions.md), and [20](ch20_durable_execution.md). For the original capstone, read [`agent.py`](../agent.py) — read it cover-to-cover. Then [`microsite/`](../microsite/) — use what you built.

@@ -1,95 +1,48 @@
-# Adapting agent-zero-to-hero to OpenAI or Gemini
+# Adapting the harness across providers
 
-Chapters 1–16 use Anthropic. Chapter 17 shows you the adapter pattern that
-makes the same agent loop run on OpenAI and Gemini. This doc is a quick
-reference for the differences.
+**Checked 2026-10-26.** The existing chapter 17 demonstrates a deliberately small adapter. It is not a full compatibility layer for current reasoning, multimodal, or hosted-agent APIs.
 
-## The agent loop is universal
+## choose an API before choosing an adapter
 
-```python
-def run_agent(provider, system, prompt, tools, dispatch):
-    messages = [AgentMessage("user", text=prompt)]
-    for _ in range(10):
-        resp = provider.complete(messages, tools, system)
-        messages.append(resp)
-        if resp.stop != "tool_use":
-            return resp.text
-        for tc in resp.tool_calls:
-            result = dispatch(tc.name, tc.args)
-            messages.append(AgentMessage("tool", text=result, tool_call_id=tc.id))
-```
+| Path | State and tool exchange | Where to learn it |
+|---|---|---|
+| Anthropic Messages, original course | Application supplies messages; `tool_use` / `tool_result` content blocks | Chapters 00–16 |
+| OpenAI Chat Completions, original adapter | `messages`, assistant `tool_calls`, tool-role replies | Chapter 17; compatibility exercise |
+| OpenAI Responses | Typed output items; `function_call_output` linked by `call_id`; optional managed continuation | [New runnable chapter 17b](../chapters/ch17b_responses.md) |
+| Gemini `generateContent`, original adapter | `model` content, `functionCall` / `functionResponse` parts | Chapter 17; inspect its limitations below |
+| Gemini Interactions | Structured steps and interaction continuation | [Current official overview](https://ai.google.dev/gemini-api/docs/interactions-overview) |
 
-That's the *exact* loop, regardless of which provider you're using. The
-adapter handles the wire format.
+OpenAI recommends Responses for new projects. Its managed Agents API, application-hosted Agents SDK, and low-level Responses API have different orchestration and state ownership. Our raw HTTP lesson teaches the last of these; it does not implement the managed harness. [OpenAI runtime guide](https://developers.openai.com/api/docs/guides/agents).
 
-## What's different per provider
+Gemini's current function-calling documentation uses Interactions. Its thinking guide explains stateful continuation and preservation of thought blocks for manual histories. The old adapter rebuilds parts from normalized text and calls, so it can lose metadata. Do not infer support for every new Gemini model from a passing fixture. [Function calling](https://ai.google.dev/gemini-api/docs/function-calling), [thinking](https://ai.google.dev/gemini-api/docs/thinking).
 
-| Aspect | Anthropic | OpenAI | Gemini |
-|---|---|---|---|
-| System prompt location | top-level `system` field | first message with `role: "system"` | top-level `system_instruction` |
-| Tool schema | `input_schema` | `parameters` | `parameters` (OpenAPI subset) |
-| Tool result message | `role: "user"` w/ `tool_result` block | `role: "tool"` w/ `tool_call_id` | `role: "user"` w/ `functionResponse` part |
-| Tool args type | parsed object | **JSON string** | parsed object |
-| Multi-tool in one turn | content array w/ multiple `tool_use` blocks | `tool_calls` array on one assistant message | `parts` array w/ multiple `functionCall` |
-| Stop reason for tool use | `stop_reason: "tool_use"` | `finish_reason: "tool_calls"` | **none — scan parts for functionCall** |
-| Roles | user, assistant | system, user, assistant, tool | user, model, function |
+## pin the API version as well as the SDK
 
-## The three foot-guns
+The raw Anthropic HTTP lessons explicitly send `anthropic-version: 2023-06-01`. That remains a documented compatibility option. Python SDK 2.x selects `2026-10-21` by default; the open-ended dependency range therefore does not guarantee the same API version as every raw HTTP lesson. Consult [versioning](https://platform.claude.com/docs/en/api/versioning) and the [October 2026 migration guide](https://platform.claude.com/docs/en/api/migration-2026-10-21) before upgrading.
 
-### 1. OpenAI's `arguments` is a JSON string
-```python
-# wrong
-args = response.choices[0].message.tool_calls[0].function.arguments
-print(args["expression"])    # TypeError: string indices must be integers
+The new API version removes sampling parameters and changes some document/citation input rules. This course's simple dict messages and positive `max_tokens` calls do not use those removed forms. The displayed reference version is not a promise about a request that omits its version header. The [validation record](VALIDATION.md) names the SDK tested offline; it is not a live compatibility certification.
 
-# right
-args = json.loads(response.choices[0].message.tool_calls[0].function.arguments)
-```
+## what the original adapter deliberately omits
 
-### 2. Gemini has no dedicated tool-use stop reason
-```python
-# wrong: assumes finishReason tells you about tools
-if candidate["finishReason"] == "tool_use":   # never true; gemini uses "STOP"
+`AgentMessage` keeps text, tool calls, and a small stop flag. It omits full provider output, usage, opaque reasoning state, safety details, and multimodal parts. The original Gemini code synthesizes call IDs from the tool name; repeated same-name calls need richer correlation. The original Anthropic conversion emits tool results as separate normalized messages; production code should preserve the provider's required tool-result grouping.
 
-# right: scan parts
-has_tool_call = any("functionCall" in p for p in candidate["content"]["parts"])
-```
+The old parsers also do not exhaustively distinguish truncation, blocking, empty candidates, and successful completion. Their HTTP paths parse JSON before raising status errors. The calculator uses `eval` with empty builtins, which is **not a security sandbox**. Use it only as an inspected teaching example; the new chapter 17b uses a bounded operation tool.
 
-### 3. Anthropic's tool_result MUST follow tool_use immediately
-```python
-# wrong: extra assistant message between tool_use and tool_result
-messages = [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": [{"type": "tool_use", ...}]},
-    {"role": "assistant", "content": "thinking..."},   # API rejects this
-    {"role": "user", "content": [{"type": "tool_result", ...}]},
-]
+## build an adapter by preserving meaning
 
-# right: nothing between
-messages = [
-    {"role": "user", "content": "..."},
-    {"role": "assistant", "content": [{"type": "tool_use", ...}]},
-    {"role": "user", "content": [{"type": "tool_result", ...}]},
-]
-```
+1. Keep the provider-native assistant payload alongside any normalized display text.
+2. Preserve call IDs, ordering, reasoning metadata, and tool-result grouping.
+3. Map every termination state explicitly; fail visibly on unknown states.
+4. Check HTTP status before parsing a success response.
+5. Validate arguments and authorization in the executor, independently of schema generation.
+6. Run provider-specific fixtures, then an opt-in live smoke test using the selected model.
 
-## Where to look in the code
+An adapter abstraction is useful only when it makes these differences visible enough to test. “Same loop” means the control-flow idea is shared; it does not mean every provider has interchangeable wire semantics.
 
-- `chapters/ch17_multi_provider.py` — three providers, ~250 LOC
-- `tests/test_multi_provider.py` — the foot-gun tests
+## models and cost
 
-## Pricing snapshot (April 2026)
+The original demos retain historical model IDs so the teaching baseline is inspectable. Check availability before running them; passing offline tests proves no live availability. The new Responses demo requires `OPENAI_MODEL` explicitly. Model selection should follow your task's measured success, latency, and cost rather than a universal vendor ranking.
 
-This dates fast. Always check the provider's pricing page.
+We removed the old cross-provider price table because its dated entries mixed models and rates. Record model ID, date, token categories, cache policy, and measured usage for each experiment. Check [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing), [OpenAI pricing](https://developers.openai.com/api/docs/pricing), and [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing) when preparing a live run. A model alias and its price are not permanent course constants.
 
-| Tier | Anthropic | OpenAI | Gemini |
-|---|---|---|---|
-| Cheap/fast | Haiku 4.5 (~$1/$5 per M) | GPT-5 mini (~$0.25/$2) | Gemini 2.0 Flash (~$0.10/$0.40) |
-| Default | Sonnet 4.6 ($3/$15) | GPT-5 mini ($0.25/$2) | Gemini 2.5 Flash ($0.075/$0.30) |
-| Flagship | Opus 4.7 ($15/$75) | GPT-5 ($15/$60) | Gemini 3 Pro ($2/$12) |
-
-## Recommended default
-
-Anthropic Sonnet for development (cleanest tool-use, fewest foot-guns), Gemini
-Flash for high-volume background tasks (cheap, fast), OpenAI for ecosystem
-compatibility (every framework supports it).
+See [the evidence ledger](SOURCES.md) and [the 2026 field guide](FIELD_GUIDE_2026.md) for migration context.

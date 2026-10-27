@@ -1,39 +1,31 @@
 # Contributing
 
-agent-zero-to-hero is an educational repo. Its goal is to teach how an agent harness works, in 18 numbered files of Python you can read on a flight. Contributions that *advance that goal* are welcome. Contributions that turn it into a framework are not.
+This is a textbook, not a framework. Keep each lesson small, inspectable, and centered on one misconception. The course includes executable chapters and explicitly labelled design labs.
 
-## Welcome contributions
+## useful changes
 
-- **Bug fixes.** If a chapter or `agent.py` has a real bug, please open an issue with reproduction. Or send a PR.
-- **Clarification edits to chapter prose.** If a docstring or `CONCEPT.md` is unclear, you understand the bar — make it clearer. Keep the planted misconception → wrong version → right version → named failure → try-this structure.
-- **Ports to other languages.** Open a PR adding your link to the README's "Notable ports" table. Naming convention: `agent-zero-to-hero-go`, `agent-zero-to-hero-rust`, `agent-zero-to-hero-ts`.
-- **Additional tests.** Especially provider-edge-case tests against mocks. Tests that need API keys are fine if they're tagged so they skip in CI.
-- **New chapters** that cover ONE missing concept. The bar: the concept must show up *every week* in real agent-builders' GitHub issues. See `docs/WISHLIST.md` for the chapters we've prioritized.
+- Fix a demonstrated bug and add a regression case that would fail before the fix.
+- Clarify a protocol invariant, implementation limit, or source attribution.
+- Add one missing engineering concept with a concrete failure and an assessable exercise.
+- Update a dated API fact using an opened primary source and record the checked date.
 
-## Not welcome
+Priorities and acceptance criteria are in [docs/WISHLIST.md](docs/WISHLIST.md).
 
-- Frameworks. No `pip install agent-zero-to-hero`. No factory classes. No abstract base classes for tools.
-- Configurability for its own sake. Karpathy's manifesto: *"not an exhaustively configurable framework... single, cohesive, minimal, readable, hackable, maximally-forkable strong baseline."*
-- Multi-paragraph docstrings explaining what `def add(a, b)` does.
-- Architecture diagrams that don't fit in a terminal at 80 cols.
+## validation
 
-## How to send a PR
+```bash
+python -m pip install -e ".[test]"
+python -m pytest tests/ -q
+python -m ruff check .
+git diff --check
+```
 
-1. Fork.
-2. `pip install -e ".[test]"` and `pytest tests/` — get a green bar.
-3. Make the change.
-4. Run the tests again.
-5. If you added a chapter, also add a corresponding test file.
-6. Open the PR. Describe the *misconception your change resolves* in the description.
+Executable chapters need meaningful offline contract tests. Design labs need checked examples, working links, and explicit statements about what is and is not implemented. Live model tests must be opt-in; never require credentials for ordinary CI.
 
-## House style
+## house style
 
-- Lowercase H2 / H3 headings (matches Karpathy's style).
-- Comments explain **why**, not what. Never narrate code.
-- Function bodies under ~30 lines. Long blocks split into small functions.
-- No type hints in chapter code (clarity over rigor — this is a textbook). Type hints fine in `agent.py`.
-- Anthropic-canonical vocabulary: `tool_use`, `tool_result`, `stop_reason`, `messages`, `system`, `compaction`, `skills`, `MCP`. Don't invent new terms.
+Use plain prose, lower-case section headings, and comments explaining why a decision matters. Prefer small functions. Avoid framework abstractions introduced only for configurability. Use the course's Anthropic vocabulary in foundation lessons and the provider's exact terms in adaptation chapters.
 
-## License
+Keep the progression: misconception → small example → named failure → correction → exercise with acceptance criteria. Distinguish measured data, hypothetical calculations, vendor case studies, and editorial recommendations. Preserve original provider payloads when they matter; do not normalize away important behavior to make an adapter look shorter.
 
-By contributing, you agree your contribution is MIT-licensed.
+Update navigation and the evidence ledger when adding a lesson. Describe the resulting behavior and relevant checks in the PR. Contributions are MIT-licensed.

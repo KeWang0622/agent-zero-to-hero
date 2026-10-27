@@ -4,7 +4,7 @@
 
 ## 🐢 GuiGui says
 
-Claude.ai (the website) has memory. The API does NOT. There is no `conversation_id`, no session token, no hidden state. Every API call is `(messages, tools, system) → next_message`. If you want continuity, you carry the list yourself.
+In this chapter we call the stateless Anthropic Messages API. The application supplies conversation history on each request. Other APIs can manage sessions or conversation state for you. A model context, saved transcript, external memory store, and durable workflow state are different things; here we learn the first two.
 
 This is *the* conceptual leap of building agents from raw APIs. Once you internalize it, every other concept becomes obvious.
 
@@ -41,13 +41,13 @@ while True:
 
 ## ⚠️ Watch out for
 
-**The role-alternation violation.** `400 messages: roles must alternate`. Cause: you appended two `user` messages in a row. Fix: invariant — after every successful API call, immediately append the assistant; after every user input, immediately append user.
+**The missing-turn bug.** Forgetting an assistant response loses part of the conversation. Anthropic combines consecutive messages with the same role; two adjacent user messages alone are not a reliable way to trigger a validation error. Tool-result pairing has stricter requirements: preserve each assistant tool call and its immediately following results. See chapter 04.
 
 ## ✅ Summary
 
 - The API is stateless; the array is the memory.
 - The array grows by 2 per turn.
-- Roles must strictly alternate user/assistant.
+- Preserve chronological messages and tool-call/result pairing; adjacent same-role messages may be combined by the API.
 
 ## 📝 Homework
 
@@ -57,11 +57,11 @@ python -m chapters.ch02_messages_array
 
 1. Multi-turn chat: tell it your favorite color. Two turns later, ask "what's my favorite color?". Confirm it remembers.
 2. After turn 3, add `import json` then `print(json.dumps(messages, default=str, indent=2))`. Read the array.
-3. Force the role-alternation 400 by appending two user messages in a row. See the error.
+3. Remove an assistant response from the saved history. Explain what information the next call loses. Compare ordinary same-role messages with a missing tool result.
 
 ## 📚 References
 
-- [Anthropic — Messages API: roles](https://docs.anthropic.com/en/api/messages#roles) — the alternation rule, formalized
+- [Anthropic — Messages API: roles](https://docs.anthropic.com/en/api/messages#roles) — message roles and same-role combination
 - [OpenAI — Conversation state](https://platform.openai.com/docs/guides/responses) — same idea in a different vendor's vocabulary
 - [Why Claude forgets — claudelab.net](https://claudelab.net/en/articles/claude-ai/claude-forgets-context-conversation-memory-fix) — the typical reader's first frustration
 

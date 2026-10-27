@@ -6,7 +6,10 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-fake-for-tests")
 os.environ["AZH_PERMISSION"] = "allow"      # auto-approve in tests
@@ -186,3 +189,93 @@ def test_smoke_cli_session_dir_flag(tmp_path, monkeypatch, capsys):
     a.main()
     captured = capsys.readouterr()
     assert str(tmp_path / "test_sessions") in captured.out
+
+
+@pytest.mark.parametrize("stop_reason", [
+    "max_tokens", "model_context_window_exceeded", "refusal", "pause_turn",
+    "future_reason", None,
+])
+def test_incomplete_turn_is_reported_and_not_saved(tmp_path, monkeypatch, capsys, stop_reason):
+    a = _load_agent()
+    monkeypatch.setattr(a, "SESSION_DIR", tmp_path)
+    monkeypatch.setattr(a, "USE_STREAM", False)
+    handler = MagicMock(return_value="should not execute")
+    monkeypatch.setitem(a.DISPATCH, "Read", handler)
+    client = MagicMock()
+    client.messages.create.return_value = _fake_response([
+        {"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "x"}}
+    ], stop_reason)
+    session, meter = a.Session(), a.Meter()
+
+    a.agent_turn(client, session, "system", meter, "read x")
+
+    handler.assert_not_called()
+    assert session.messages == [{"role": "user", "content": "read x"}]
+    assert str(stop_reason) in capsys.readouterr().out
+    assert meter.turns == 1  # An incomplete generation still has a token cost.
+
+
+def _tool_stream(inputs, stop_reason):
+    """Wire order matters: block_stop arrives before the final stop reason."""
+    event = SimpleNamespace
+    events = []
+    for index, raw in enumerate(inputs):
+        events.extend([
+            event(type="content_block_start", index=index,
+                  content_block=event(type="tool_use", id=f"t{index}", name="Read")),
+            event(type="content_block_delta", index=index,
+                  delta=event(type="input_json_delta", partial_json=raw)),
+            event(type="content_block_stop", index=index),
+        ])
+    usage = event(input_tokens=100, output_tokens=50,
+                  cache_creation_input_tokens=0, cache_read_input_tokens=0)
+    events.extend([
+        event(type="message_delta", delta=event(stop_reason=stop_reason), usage=usage),
+        event(type="message_stop", message=event(usage=usage)),
+    ])
+    return events
+
+
+@pytest.mark.parametrize("inputs,stop_reason,notice", [
+    (['{"file_path": "unfinished'], "max_tokens", "truncated (max_tokens)"),
+    (['{"file_path": "x"}', '{"file_path":'], "tool_use", "invalid JSON"),
+    (["[]"], "tool_use", "must be a JSON object"),
+])
+def test_streamed_bad_args_never_dispatch_or_pollute_history(
+        tmp_path, monkeypatch, capsys, inputs, stop_reason, notice):
+    a = _load_agent()
+    monkeypatch.setattr(a, "SESSION_DIR", tmp_path)
+    handler = MagicMock(return_value="should not execute")
+    monkeypatch.setitem(a.DISPATCH, "Read", handler)
+    client = MagicMock()
+    client.messages.stream.return_value.__enter__.return_value = _tool_stream(inputs, stop_reason)
+    session, meter = a.Session(), a.Meter()
+
+    a.agent_turn(client, session, "system", meter, "read x")
+
+    handler.assert_not_called()
+    assert session.messages == [{"role": "user", "content": "read x"}]
+    assert a.Session(session.id).messages == session.messages
+    assert notice in capsys.readouterr().out
+    assert meter.turns == 1
+
+
+def test_valid_streamed_tool_round_trip(tmp_path, monkeypatch):
+    a = _load_agent()
+    monkeypatch.setattr(a, "SESSION_DIR", tmp_path)
+    handler = MagicMock(return_value="file contents")
+    monkeypatch.setitem(a.DISPATCH, "Read", handler)
+    client = MagicMock()
+    client.messages.stream.return_value.__enter__.side_effect = [
+        _tool_stream(['{"file_path": "x"}'], "tool_use"),
+        _tool_stream([], "end_turn"),
+    ]
+    session, meter = a.Session(), a.Meter()
+
+    a.agent_turn(client, session, "system", meter, "read x")
+
+    handler.assert_called_once_with(file_path="x")
+    assert session.messages[1]["content"][0]["input"] == {"file_path": "x"}
+    assert "_partial_json" not in str(session.messages)
+    assert session.messages[2]["content"][0]["tool_use_id"] == "t0"
+    assert meter.turns == 2

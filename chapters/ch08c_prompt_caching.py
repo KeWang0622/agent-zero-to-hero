@@ -1,8 +1,8 @@
 """
 chapter 08c — prompt caching, the deep version
 
-# Caching is the single biggest cost lever for agents. It's not a feature
-# you "turn on." It's a placement problem: WHERE do you put cache_control?
+# This experiment teaches explicit prefix breakpoints. Current APIs also
+# offer automatic caching; inspect usage instead of assuming a fixed saving.
 
 before this chapter, ch08 mentioned caching in passing and ch08b showed the
 meter. now we go deep.
@@ -12,8 +12,9 @@ three things you must know:
   1. THE THRESHOLD (varies by model).
      anthropic doesn't cache anything below a minimum input size:
        Sonnet 4.5 / 4 / 3.7    → 1,024 tokens
-       Sonnet 4.6 (default)    → 2,048 tokens
-       Opus 4.5 / 4.6 / 4.7    → 4,096 tokens
+       Sonnet 4.6 (default)    → 1,024 tokens
+       Opus 4.5 / 4.6          → 4,096 tokens
+       Opus 4.7                → 2,048 tokens
        Haiku 4.5               → 4,096 tokens
        Haiku 3.5               → 2,048 tokens
      below the threshold, cache_control is silently ignored. cache_r stays 0.
@@ -23,7 +24,7 @@ three things you must know:
      up to 4 cache_control markers per request. each marks the END of a
      cacheable prefix. anthropic caches the prefix; on the next call with the
      same prefix, those tokens cost ~10% of input price.
-     order matters: system → tools → messages. cache the things that change LEAST.
+     order matters: tools → system → messages. cache the things that change LEAST.
 
   3. THE TTL.
      ephemeral cache lives ~5 minutes by default. for long-running daemons:
@@ -68,12 +69,12 @@ P = {
 
 # caching threshold is per-model:
 #   Sonnet 4.5 / 4 / 3.7  → 1,024 tokens
-#   Sonnet 4.6 (default)  → 2,048 tokens   ← what this file uses
-#   Opus 4.5+ / Haiku 4.5 → 4,096 tokens
+#   Sonnet 4.6 (default)  → 1,024 tokens   ← what this file uses
+#   Opus 4.5 / 4.6 / Haiku 4.5 → 4,096 tokens
 #   Haiku 3.5             → 2,048 tokens
 # real agents have AGENT.md, system + tool definitions, and skill catalogs
 # that clear all of these naturally. for the demo, we pad with verbose
-# conventions to clear Sonnet 4.6's 2,048-token threshold.
+# conventions to clear Sonnet 4.6's 1,024-token threshold.
 _RULES = [
     ("always read a file before editing it",
      "the Edit tool requires you to know the exact bytes you're replacing; "
@@ -113,7 +114,7 @@ _RULES = [
      "your loop's exit condition is data, not a heuristic; check stop_reason "
      "exhaustively or you'll silently misbehave on truncation and refusals"),
     ("compaction at 60% of context window, not at message count",
-     "performance degrades around 70% utilization; trigger at 60% to leave "
+     "this demo chooses 60% as a heuristic to leave "
      "headroom for the summarizer call itself, which costs tokens too"),
     ("subagents isolate context; only the final text returns to the parent",
      "a 10-turn subagent costs the parent ~17 tokens of summary instead of "
@@ -123,14 +124,14 @@ _RULES = [
      "the catalog (name + description) goes in the system prompt; the body "
      "(thousands of tokens of procedural knowledge) gets loaded only when the "
      "model decides it needs it — progressive disclosure"),
-    ("MCP servers are child processes speaking JSON-RPC 2.0 over stdio",
+    ("our pinned 2024-11-05 MCP demo uses JSON-RPC 2.0 over stdio",
      "no SDK required — line-delimited JSON over pipes, three method calls "
      "(initialize, tools/list, tools/call); when you understand this, MCP "
      "stops being mysterious"),
     ("streaming text deltas render immediately; tool_use deltas accumulate",
      "input_json_delta events arrive as fragments of a JSON string; you "
      "CANNOT json.parse them mid-stream — accumulate into a buffer and parse "
-     "only on content_block_stop"),
+     "after the stream ends and its stop reason is validated"),
     ("for parallel tool calls, batch ALL results into ONE user message",
      "the API and the model both observe whether tool_results are batched; "
      "splitting one tool_result per user message teaches the model that "
@@ -147,9 +148,9 @@ _RULES = [
      "fixed delay floods the queue; equal jitter still creates thundering "
      "herds; full jitter (delay = base * 2^attempt * random()) is the only "
      "scheme that smooths bursty client traffic to a nice flat curve"),
-    ("session JSONL: one line per turn, append-only, crash-safe",
+    ("session JSONL: append-only transcript, not transactional execution",
      "JSONL is the right serialization for sessions because every line is "
-     "self-contained and atomic; JSON requires reading the whole file to "
+     "self-contained, though writes may tear; JSON often reads the file to "
      "append, and crash mid-write corrupts the array — JSONL crashes are local"),
     ("AGENT.md discovery: walk up from cwd, root-first, deepest-last",
      "this lets users override globally via ~/.agent-zero-to-hero/AGENT.md, project-wide "
@@ -196,7 +197,7 @@ _RULES = [
 LONG_SYSTEM = (
     "You are agent-zero-to-hero, a careful coding agent. Be precise and terse.\n"
     "You have a calculator tool. Use it for any arithmetic. Show your work.\n\n"
-    "Detailed conventions (long enough to clear Sonnet 4.6's 2,048-token threshold):\n\n"
+    "Detailed conventions (long enough to clear Sonnet 4.6's 1,024-token threshold):\n\n"
     + "\n\n".join(f"  rule {i}: {short}\n    why: {long}"
                   for i, (short, long) in enumerate(_RULES))
 ).strip()

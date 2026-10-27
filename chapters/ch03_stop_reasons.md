@@ -1,6 +1,6 @@
 # Chapter 03 — Stop Reasons 🐢
 
-> **The loop is `while True`. The way OUT is `stop_reason`. There are seven values. Handle each correctly or your agent fails silently.**
+> **The loop is `while True`. The way OUT is `stop_reason`. This foundation lesson covers seven values in its original API scope. Handle unexpected values explicitly.**
 
 ## 🐢 GuiGui says
 
@@ -8,7 +8,9 @@ Most beginners write `while stop_reason == "tool_use": ...` and get bitten when 
 
 > **Heads up:** one of the seven values is `tool_use`. We haven't introduced tools yet (that's [ch04](ch04_one_tool.md)). For this chapter, just know that `tool_use` is one of the values — we'll cover what it *means* in the next chapter.
 
-## The seven stop_reasons
+## the foundation stop reasons
+
+Provider features can add variants. Claude's current on-demand compaction beta, for example, documents `compaction`; it is outside this lesson and the capstone. Consult the [feature guide](https://platform.claude.com/docs/en/build-with-claude/compaction-on-demand) and [API versions](https://platform.claude.com/docs/en/api/versioning), and reject unsupported variants visibly.
 
 | Value | Meaning | Loop action |
 |---|---|---|
@@ -49,7 +51,7 @@ Exhaustive. Loud on every unexpected value. **No silent failures.**
 
 ## ✅ Summary
 
-- Seven stop reasons. Each needs distinct handling.
+- These seven foundation stop reasons need distinct handling; feature-specific variants may extend the set.
 - Never write `while stop_reason == "tool_use"` — handle all seven.
 - Always raise loudly on unknown values for forward-compatibility.
 
@@ -61,8 +63,8 @@ python -m chapters.ch03_stop_reasons
 
 1. Trigger `max_tokens` by setting `max_tokens=8`.
 2. Trigger `stop_sequence` with `stop_sequences=["END"]`.
-3. Find a prompt that triggers `refusal` (try ethically grey-zone tasks).
-4. **Bonus:** trigger `model_context_window_exceeded` by stuffing 250K tokens into messages.
+3. Inject a refusal fixture and check that the harness reports it distinctly from empty success.
+4. **Bonus:** inject a `model_context_window_exceeded` fixture and assert that no tool executes. Do not buy a huge prompt just to exercise this branch; input validation can also reject oversized requests before generation.
 
 ## 📚 References
 

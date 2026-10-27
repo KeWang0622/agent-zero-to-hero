@@ -1,7 +1,7 @@
 """
-agent.py — the climax. a production-quality Claude-Code-shaped CLI agent.
+agent.py — the climax. an educational Claude-Code-shaped CLI agent.
 
-# By chapter 17 you understood every primitive. This file uses them all.
+# By chapter 17 you understood the primitives. This file combines the core ones.
 
 what it ships:
   - streaming output (SSE, chunk-buffered, ch15-style)
@@ -13,9 +13,9 @@ what it ships:
   - permissions: ask | allow | deny modes (env or per-call)
   - context compaction triggered at 60% of model window
   - retries with exponential backoff + jitter (handles 429 / 529 / network)
-  - prompt caching on system + tools (5-minute TTL, ~10x cost reduction)
-  - cost & token meter — live status line, persisted to session
-  - 7 slash commands: /help /clear /compact /resume /cost /model /init /exit
+  - prompt caching on system + tools (5-minute TTL; savings depend on reuse)
+  - cost & token meter — live status line for this process (not persisted)
+  - 8 slash commands: /help /clear /compact /resume /cost /model /init /exit
   - graceful ctrl-c handling: cancel mid-turn without losing session
 
 run:
@@ -417,10 +417,11 @@ class Session:
 
     def replace_messages(self, new_messages: list[dict], reason: str):
         """For compaction: replace the in-memory array and log the rewrite."""
-        self.messages = new_messages
         self._write({"type": "compact", "reason": reason,
+                     "messages": new_messages,
                      "len_after": len(new_messages),
                      "ts": datetime.now(timezone.utc).isoformat()})
+        self.messages = new_messages
 
     def _write(self, entry: dict):
         with self.path.open("a") as f:
@@ -443,7 +444,9 @@ class Session:
             elif t == "clear":
                 self.messages.clear()
             elif t == "compact":
-                pass  # we don't try to reconstruct compacted state on resume
+                # Older logs only recorded a count, so their summary is unrecoverable.
+                if "messages" in entry:
+                    self.messages = entry["messages"]
             elif t == "drop_orphan_user":
                 if self.messages and self.messages[-1]["role"] == "user":
                     self.messages.pop()
@@ -574,8 +577,8 @@ def _build_tools_param() -> list[dict]:
 
 
 def stream_one_turn(client: Anthropic, system, messages: list[dict]):
-    """Stream one assistant turn. Yields incremental text. Returns
-    (assistant_blocks, stop_reason, usage)."""
+    """Render text; buffer tool JSON until the final stop reason is available.
+    Returns (unvalidated_blocks, stop_reason, usage) for validate_response()."""
     blocks_in_progress: dict[int, dict] = {}
     stop_reason = None
     usage = None
@@ -612,13 +615,7 @@ def stream_one_turn(client: Anthropic, system, messages: list[dict]):
                     blk["_partial_json"] += d.partial_json
 
             elif t == "content_block_stop":
-                blk = blocks_in_progress.get(event.index)
-                if blk and blk["type"] == "tool_use":
-                    raw = blk.pop("_partial_json") or "{}"
-                    try:
-                        blk["input"] = json.loads(raw)
-                    except json.JSONDecodeError:
-                        blk["input"] = {}
+                pass  # A finished block can still belong to a truncated response.
 
             elif t == "message_delta":
                 stop_reason = event.delta.stop_reason
@@ -635,6 +632,30 @@ def stream_one_turn(client: Anthropic, system, messages: list[dict]):
     if any(b["type"] == "text" and b["text"].strip() for b in blocks):
         console.print()                   # newline after the streamed text
     return blocks, stop_reason, usage
+
+
+def validate_response(blocks: list[dict], stop_reason: str | None):
+    """Reject incomplete turns before they enter history or execute any tool."""
+    if stop_reason in {"max_tokens", "model_context_window_exceeded"}:
+        raise ValueError(f"response truncated ({stop_reason}); no tools executed")
+    if stop_reason == "refusal":
+        raise ValueError("model declined the request (refusal)")
+    if stop_reason == "pause_turn":
+        raise ValueError("server turn paused (pause_turn); this local-tools demo "
+                         "does not implement server-tool continuation")
+    if stop_reason not in {"end_turn", "stop_sequence", "tool_use"}:
+        raise ValueError(f"unexpected stop_reason: {stop_reason!r}")
+    tool_blocks = [b for b in blocks if b.get("type") == "tool_use"]
+    if bool(tool_blocks) != (stop_reason == "tool_use"):
+        raise ValueError("tool_use blocks and stop_reason disagree")
+    for b in tool_blocks:
+        if "_partial_json" in b:
+            try:
+                b["input"] = json.loads(b.pop("_partial_json") or "{}")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"invalid JSON for tool {b['name']}; no tools executed") from e
+        if not isinstance(b.get("input"), dict):
+            raise ValueError(f"tool {b['name']} input must be a JSON object")
 
 
 def agent_turn(client: Anthropic, session: Session, system_text: str,
@@ -684,13 +705,18 @@ def agent_turn(client: Anthropic, session: Session, system_text: str,
             console.print(f"\n[red]unexpected error: {type(e).__name__}: {e}[/red]")
             return
 
-        session.append_assistant(content_blocks)
-
         if usage is not None:
             spent = meter.add(usage)
             console.print(f"  [dim]turn {turn} · ${spent:.4f}  total {meter.status()}[/dim]")
 
-        if stop_reason != "tool_use":
+        try:
+            validate_response(content_blocks, stop_reason)
+        except ValueError as e:
+            console.print(f"  [red]response not completed: {e}[/red]")
+            return
+
+        session.append_assistant(content_blocks)
+        if stop_reason in {"end_turn", "stop_sequence"}:
             return
 
         # dispatch tools, optionally asking for permission

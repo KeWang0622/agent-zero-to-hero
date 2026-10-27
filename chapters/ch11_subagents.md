@@ -34,7 +34,9 @@ def run_subagent(task: str) -> str:
 
 Register it as a tool in the parent's TOOLS list. Done.
 
-## Cost math
+## illustrative cost math
+
+The following numbers are a hypothetical input-token calculation, not a benchmark or a guaranteed saving. They omit output tokens and caching.
 
 The big win is on the PARENT's context, not total tokens. With a subagent the parent stays small and stays sharp:
 
@@ -45,7 +47,7 @@ The big win is on the PARENT's context, not total tokens. With a subagent the pa
 | Total tokens (incl. subagent) | 500K | ~300K |
 | Total cost @ Sonnet rates | $1.50 | $0.90 (no caching) |
 
-With prompt caching on the subagent's stable prefix, the gap widens further. The conceptual win — *parent context stays uncluttered* — matters more than the dollar count: a 5K-token parent thinks better than a 50K-token parent.
+Caching can affect both baselines. A smaller parent context may improve focus, but quality depends on which evidence survives the handoff. Require each child to return its result, evidence, uncertainty, and artifact location. Parallelize independent reads; coordinate shared writes and aggregate every child's resource use.
 
 ## ⚠️ Watch out for
 
@@ -55,7 +57,7 @@ With prompt caching on the subagent's stable prefix, the gap widens further. The
 
 - Subagent = fresh `messages[]` agent loop, called as a tool.
 - Parent only sees the final string.
-- 10× cheaper for big side-quests. Don't use for trivial subtasks.
+- Smaller parent context can help; total cost includes every child. Measure quality, latency, and aggregate tokens against a single-agent baseline.
 
 ## 📝 Homework
 
@@ -69,7 +71,7 @@ python -m chapters.ch11_subagents
 
 ## 📚 References
 
-- [Anthropic — How we built Claude Code's subagent system](https://www.anthropic.com/engineering/multi-agent-research-system) — production patterns
+- [Anthropic — How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) — production patterns
 - [Anthropic — Building Effective Agents (orchestrator-workers section)](https://www.anthropic.com/research/building-effective-agents) — the canonical pattern
 - [shareAI-lab/learn-claude-code — `s04`](https://github.com/shareAI-lab/learn-claude-code) — fresh-`messages[]` subagent reference
 - [Hong et al. — MetaGPT (2023)](https://arxiv.org/abs/2308.00352) — multi-agent framework paper

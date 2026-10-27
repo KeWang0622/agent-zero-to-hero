@@ -95,6 +95,33 @@ def test_session_compact_log_entry(tmp_path, monkeypatch):
     assert any(json.loads(l).get("type") == "compact" for l in lines)
 
 
+def test_session_replays_compaction_and_later_turns(tmp_path, monkeypatch):
+    a = _load_agent()
+    monkeypatch.setattr(a, "SESSION_DIR", tmp_path)
+    session = a.Session()
+    session.append_user("old detailed context")
+    session.append_assistant([{"type": "text", "text": "old reply"}])
+    summary = [{"role": "user", "content": "summary of prior work"},
+               {"role": "assistant", "content": [{"type": "text", "text": "ready"}]}]
+    session.replace_messages(summary, reason="test")
+    session.append_user("continue from the summary")
+    session.append_assistant([{"type": "text", "text": "done"}])
+
+    resumed = a.Session(session.id)
+    assert resumed.messages == session.messages
+    assert len(resumed.messages) == 4
+    assert "old detailed context" not in str(resumed.messages)
+
+
+def test_session_replays_old_compact_records_without_losing_history(tmp_path, monkeypatch):
+    a = _load_agent()
+    monkeypatch.setattr(a, "SESSION_DIR", tmp_path)
+    session = a.Session()
+    session.append_user("legacy history")
+    session._write({"type": "compact", "len_after": 1, "reason": "old format"})
+    assert a.Session(session.id).messages == session.messages
+
+
 # ---- compaction safety -------------------------------------------------
 
 def test_is_tool_use_assistant_detector():

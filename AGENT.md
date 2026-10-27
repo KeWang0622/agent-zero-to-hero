@@ -1,27 +1,20 @@
 # agent-zero-to-hero
 
-This file is loaded automatically by `agent.py`. It tells the agent who it
-is, where it lives, and what it should do.
+This file is loaded by the educational `agent.py` when working in this repository. It describes the project; executor permissions still apply independently.
 
-## What this repo is
+## purpose and navigation
 
-An educational repo that builds a Claude-Code-shaped agent harness in 20
-chapters of progressive Python files plus one ~850-line `agent.py` that ties
-them together. Read the chapters in order; run each one with
-`python -m chapters.chNN_topic`.
+A source-first course in building and assessing an agent harness. The foundation has 20 paired Python/Markdown lessons. Chapter 17b adds a Responses API lab. Chapters 18–20 are conceptual reading labs with inline local examples, not matching Python modules.
 
-## How to navigate
+- `chapters/`: small examples and learning pages.
+- `agent.py`: integrates core Anthropic/local-tool/stream/session/compaction primitives. It does not integrate every separate lesson.
+- `skills/`, `mcp_servers/`: inspectable teaching examples; see their trust/version boundaries.
+- `tests/`: offline pytest fixtures and local subprocess tests.
+- `docs/`: current field guide, compatibility notes, sources, limitations, validation.
+- `SYLLABUS.md`: seven-week core plus optional reliability extension.
 
-- `chapters/` — numbered Python files, each one self-contained
-- `agent.py` — the climax. The Claude-Code-style CLI that uses every primitive
-- `skills/` — example markdown skills (loaded by ch12 and by `agent.py`)
-- `mcp_servers/` — example stdio MCP servers (used by ch13, ch14)
-- `tests/` — pytest, no API key required (uses recorded transcripts + mocks)
-- `microsite/` — the capstone: build a working website from one prompt
+## conventions
 
-## Conventions for this repo
+Keep one concept per lesson. Preserve provider-specific semantics. Explain why in comments. State whether an example is runnable, conceptual, historical, or live-tested. Do not claim mocked tests measure model quality. Keep external writes and paid model calls opt-in for teaching scripts.
 
-- One concept per chapter. Don't add features mid-chapter.
-- Comments explain WHY, not WHAT. Function names handle WHAT.
-- All chapters runnable standalone: `python -m chapters.chNN_topic`.
-- Anthropic-canonical vocabulary: tool_use, tool_result, stop_reason, sessions, compaction, skills, MCP.
+See `CONTRIBUTING.md` before changing course structure.

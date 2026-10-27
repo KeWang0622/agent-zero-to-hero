@@ -1,19 +1,19 @@
 # Chapter 09 — Sessions: A Conversation That Survives `Ctrl-C` 🐢
 
-> **A session is just an append-only JSONL file of the messages array. You can `tail -f` it. You can `cat` it. There's nothing else.**
+> **This chapter's session is an append-only JSONL log plus an in-memory messages array. You can inspect both.**
 
 ## 🐢 GuiGui says
 
-Claude Code, Cursor, openclaw — they all use the same trick. JSONL on disk, one line per turn. Open one and you'll see the same `messages` array your loop has been maintaining, persisted line by line.
+The chapter writes conversation events as JSONL, then reconstructs the messages array when you reopen a session. This makes ordinary restarts easy to understand. Recovering a partially executed tool action requires additional state, which this example does not implement.
 
 ## Why JSONL not JSON
 
 | Feature | JSON | JSONL |
 |---|---|---|
 | Append per turn | Read + parse + modify + write | One `f.write(line + "\n")` |
-| Crash mid-write | Corrupt array | One bad line; rest survive |
+| Partial write | May leave an invalid document | Earlier complete lines can be recovered with an explicit recovery policy |
 | Greppable / `tail -f` | No | Yes |
-| Schema evolution | Breaks old readers | Independent lines |
+| Schema evolution | Requires reader compatibility | Event types and fields still require reader compatibility |
 
 ## Show me the code
 
@@ -35,13 +35,20 @@ class Session:
 
 ## ⚠️ Watch out for
 
-**The orphan user message.** Ctrl-C between user prompt and assistant reply leaves an orphan. On `--resume`, the next API call rejects with role-alternation 400. Fix: walk the array on resume; if last is bare-string user, pop it.
+**The unanswered user message.** Ctrl-C between the prompt and reply can leave a trailing user message. The Messages API combines consecutive same-role turns, so this does not inherently cause a role-alternation error. Keeping the unanswered prompt, retrying it, or dropping it is an application choice. The chapter retains it; the capstone drops a trailing plain user prompt on resume. [Messages API reference](https://platform.claude.com/docs/en/api/messages/create)
+
+**The partial last line.** JSONL is a format, not an atomic-write guarantee. `flush()` does not guarantee that data survives power loss, and this chapter's simple reader raises on invalid JSON. The capstone skips malformed lines, but a durable store also needs an explicit corruption policy and protection against concurrent writers.
+
+**The unresolved tool call.** A crash can happen after an assistant requests a tool, or after a side effect succeeds but before its result is logged. Replaying the conversation alone cannot tell you whether it is safe to run that tool again. Production recovery needs execution checkpoints, idempotency where available, and reconciliation of uncertain outcomes. See [durable execution](ch20_durable_execution.md).
+
+**The missing rewrite.** Compaction changes the active conversation. The capstone now records the compacted message snapshot and replays it on resume; older logs that recorded only a message count cannot recover their missing summary.
 
 ## ✅ Summary
 
-- JSONL: append-only, crash-safe, greppable, atomic per line.
+- JSONL makes append-only conversation logs inspectable.
 - Session = file + in-memory mirror of messages.
-- Resume = replay file into memory; truncate orphans.
+- Resume requires replay rules for messages, compaction, and incomplete work.
+- Conversation persistence does not provide durable tool execution by itself.
 
 ## 📝 Homework
 
@@ -57,7 +64,7 @@ python -m chapters.ch09_sessions resume <id>
 
 1. Verify the resumed session remembers your prior turns.
 2. `tail -f ~/.agent-zero-to-hero/sessions/<id>.jsonl` while running. Watch each turn append.
-   *(Note: production `agent.py` namespaces by cwd — `~/.agent-zero-to-hero/projects/<slug>/<id>.jsonl`.)*
+   *(Note: the capstone `agent.py` namespaces by cwd — `~/.agent-zero-to-hero/projects/<slug>/<id>.jsonl`.)*
 3. Modify ONE line in the JSONL by hand. Resume. Does it work?
 
 ## 📚 References

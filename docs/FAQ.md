@@ -1,23 +1,35 @@
-# Common confusions
+# Common questions
 
-The three questions every reader asks. Answered in one sentence each.
+## is this a framework?
 
-### Q: Why not LangChain / LangGraph / CrewAI / AutoGen?
+No. It is a source-first textbook: inspect a protocol, run a small example, break an invariant, and explain the failure. Frameworks and managed runtimes can supply orchestration and operations; knowing the primitives helps you evaluate them.
 
-Those are frameworks; this is a textbook. Frameworks tell you *what to type*; agent-zero-to-hero tells you *what's underneath*. If you understand chapter 5, you understand what every agent framework on Earth is wrapping. Then if you choose to use one, you'll know exactly when it's helping and when it's hiding the bug.
+## why keep Anthropic in the foundation chapters?
 
-### Q: Why Anthropic and not OpenAI / Gemini in the main chapters?
+The course uses one concrete vocabulary consistently: `messages`, `tool_use`, `tool_result`, and `stop_reason`. That is a teaching choice, not a ranking of providers. Chapter 17 compares historical wire formats; chapter 17b adds a current OpenAI Responses example. See [ADAPTING.md](ADAPTING.md) for the compatibility boundary.
 
-Anthropic's wire format is the cleanest expression of agent concepts: `tool_use` and `tool_result` are typed content blocks, `input` is a parsed object (no JSON-string detour), there's exactly one shape per concept. OpenAI has Chat Completions *and* Responses (two formats for the same thing). Gemini doesn't have a dedicated tool-use stop reason. **Chapter 17 is the adapter** that makes the same agent run on all three. Once you understand the Anthropic loop, the others are 50-line ports.
+## what works without an API key?
 
-### Q: Is this production-ready?
+Installation checks and `python -m pytest tests/` run offline with mocks and a real local MCP subprocess. Model-backed chapter demos and the capstone need credentials and may incur charges. Offline tests do not certify model behavior, current endpoint availability, or model pricing.
 
-No, and that's the point. This is a **textbook** — read it, copy it, throw it away. After you understand it, go read [openclaw](https://github.com/openclaw/openclaw) (production CLI) or [Anthropic's claude-code](https://github.com/anthropics/claude-code) source. Or build your own production thing — you'll know what you need.
+## is agent.py production-ready?
 
-### Q: How long does it take to get through?
+It is an educational CLI. It can read local files and invoke a shell with your process's access. Its Write/Edit/Bash confirmation is not a sandbox, and read tools can expose sensitive data. Inspect the code and use a disposable workspace. [Chapter 19](../chapters/ch19_permissions.md) explains the engineering boundary.
 
-If you read every chapter and run every demo: ~5 hours. If you skip the demos and just read: ~2 hours. If you're already comfortable with the Anthropic SDK: ~45 minutes for the parts you don't already know.
+The update persists new compaction snapshots and stops invalid model turns before executing tools. It still lacks transactional tool execution, durable approval state, replay-safe external writes, complete metadata-preserving provider adapters, and comprehensive budgets. [Chapter 20](../chapters/ch20_durable_execution.md) develops those designs.
 
-### Q: I don't have an API key. Can I still use this?
+## does the six-line loop explain an entire commercial coding agent?
 
-Yes. `pytest tests/` passes 18 tests with no API key. The MCP tests spawn a real subprocess and exchange real JSON-RPC. The multi-provider tests verify the foot-guns. You can confirm everything works before you sign up.
+It explains a useful control-flow skeleton. It does not reproduce a commercial product's planner, permissions, tool scheduler, state management, evaluation system, or deployment infrastructure. Study actual public implementations such as [Codex CLI](https://github.com/openai/codex) and [Aider](https://github.com/Aider-AI/aider), reading their own licenses and documentation.
+
+## how long and how much will it take?
+
+Use the original seven-week schedule for the foundation, then the optional reliability extension. Time and API spend depend on how many exercises you run, the chosen model, retries, and output size. No fixed cost or completion time is guaranteed. Start offline and measure one live task before budgeting a class.
+
+## are the new chapters all executable?
+
+Chapter 17b has Python and offline tests. Chapters 18–20 are design lessons with concrete exercises and acceptance criteria; they do not claim to add production subsystems to `agent.py`. The README distinguishes these two tracks.
+
+## which parts can age?
+
+Model IDs, prices, protocol versions, feature availability, and API examples. The evidence ledger records the date checked and links to primary sources. A linked page may change after this edition. Keep protocol fixtures pinned and rerun a live smoke test when changing a provider or model.
